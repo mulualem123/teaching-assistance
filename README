@@ -1,0 +1,77 @@
+#Id CommandLine
+   1 try { . "c:\Users\selon\AppData\Local\Programs\Microsoft VS Code\resources\app\out\vs\workbench\contrib\terminal\browser\media\shellIntegration.ps1" } catch {}
+   2 & C:/Python311/python.exe c:/Users/selon/Documents/Projects/VSprojects/python/flask/TranslateChange/app.py
+   3 py -3 -m venv .venv
+   4 .venv\Scripts\activate
+   5 pip install Flask
+   6 python.exe -m pip install --upgrade pip
+   7 flask run --host=0.0.0.0
+   8 pip install requests
+   9 flask run --host=0.0.0.0
+  10 pip install pandas
+  11 history
+  12 !9
+  13 flask run --host=0.0.0.0
+  14 pip install openpyxl
+  15 flask run --host=0.0.0.0
+  16 pip install googletrans==4.0.0-rc1
+  17 flask run --host=0.0.0.0
+  18 & c:/Users/selon/Documents/Projects/VSprojects/python/flask/TranslateChange/.venv/Scripts/python.exe c:/Users/selon/Documents/Projects/VSprojects/python/flask/TranslateChange/app.py
+
+# A function to convert Geez alphabet to Latin alphabet using Lexilogos API
+def geez_to_latin1(text):
+    text1 = geez_to_eng(text)
+    url = "https://www.lexilogos.com/keyboard/amharic_conversion.htm"
+    data = {"texte": text1, "translit": "1"}
+    response = requests.post(url, data=data)
+    return response.text
+
+#Translate1
+@app.route('/Translate', methods=['GET', 'POST'])
+def translate():
+    if rq.method == 'POST' and 'my_button' in rq.form:
+        # Call your function here
+        lg_text = translate_tig_eng()
+        test = "Button clicked!"
+        return render_template('index.html', test_text=test, lg_text = lg_text)
+    else:
+        return render_template('index.html')
+
+
+############# Data Base #############
+from flask import g
+import sqlite3
+
+def get_db():
+    db = getattr(g, '_database', None)
+    if db is None:
+        db = g._database = sqlite3.connect('data.sqlite')
+    return db
+
+@app.teardown_appcontext
+def close_db(error):
+    """Closes the database again at the end of the request."""
+    db = getattr(g, '_database', None)
+    if db is not None:
+        db.close()
+
+# Functions for working with the database
+def query_db(query, args=(), one=False):
+    cur = get_db().execute(query, args)
+    res = cur.fetchall()
+    return res[0] if res else None
+
+def init_db():
+    db = get_db()
+    with app.open_resource('schema.sql') as f:
+        db.cursor().executescript(f.read())
+        
+        
+        
+        
+        
+from flask_sqlalchemy import SQLAlchemy
+
+app.config['SQLALCHEMY_DATABASE_URL'] = ''
+db = SQLAlchemy (app)'
+

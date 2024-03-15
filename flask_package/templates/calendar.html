@@ -1,0 +1,37 @@
+from ethiopian_date import EthiopianDateConverter
+converter = EthiopianDateConverter()
+today = converter.to_ethiopian_date(datetime.date.today())
+
+def monthrange(year, month):
+    converter = EthiopianDateConverter()
+    # get the first day of the month
+    first_day = converter.to_gregorian(year, month, 1)
+    # get the last day of the month
+    if month == 13: # 13th month has 5 or 6 days depending on the year
+        last_day = converter.to_gregorian(year + 1, 1, 1) - datetime.timedelta(days=1)
+    else: # other months have 30 days
+        last_day = converter.to_gregorian(year, month + 1, 1) - datetime.timedelta(days=1)
+    # get the number of days in the month
+    days = (last_day - first_day).days + 1
+    # get the weekday of the first day of the month
+    weekday = first_day.weekday()
+    return (weekday, days)
+
+    def format_date(date, format):
+    converter = EthiopianDateConverter()
+    # convert the date to the geez calendar
+    ethiopian_date = converter.to_ethiopian_date(date)
+    # format the date according to the format string
+    return ethiopian_date.strftime(format)
+
+    def get_month_name(month):
+    converter = EthiopianDateConverter()
+    # get the name of the month from the converter
+    return converter.months[month - 1]
+
+    <h1>{{ calendar.get_month_name(month) }} {{ year }}</h1>
+<div id="calDays">
+    {% for day in range(0, 7) %}
+    <div class="calDay">{{ calendar.get_day_name(day) }}</div>
+    {% endfor %}
+</div>
