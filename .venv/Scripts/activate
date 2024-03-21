@@ -38,7 +38,7 @@ deactivate () {
 # unset irrelevant variables
 deactivate nondestructive
 
-VIRTUAL_ENV="C:\Users\selon\Documents\Projects\VSprojects\python\flask\TranslateChange\.venv"
+VIRTUAL_ENV="C:\Users\selon\Documents\Projects\VSprojects\python\flask\teaching-assistance\.venv"
 export VIRTUAL_ENV
 
 _OLD_VIRTUAL_PATH="$PATH"

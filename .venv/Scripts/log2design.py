@@ -1,4 +1,4 @@
-#!C:\Users\selon\Documents\Projects\VSprojects\python\flask\TranslateChange\.venv\Scripts\python.exe
+#!C:\Users\selon\Documents\Projects\VSprojects\python\flask\teaching-assistance\.venv\Scripts\python.exe
 # Create Lyman/Fitz style long flat Design Files from plain-text onset files
 # EKK / June 2015
 # Python 2/3 compatibile, depends on Pandas and Numpy/Scipy

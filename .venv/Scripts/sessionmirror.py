@@ -1,4 +1,4 @@
-#!C:\Users\selon\Documents\Projects\VSprojects\python\flask\TranslateChange\.venv\Scripts\python.exe
+#!C:\Users\selon\Documents\Projects\VSprojects\python\flask\teaching-assistance\.venv\Scripts\python.exe
 '''
 The MIT License (MIT)
 
