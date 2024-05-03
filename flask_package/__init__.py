@@ -9,11 +9,8 @@ from flask_mail import Mail, Message
 
 #from flask_package.mailing import Gmail
 
-
-
-
 app = Flask(__name__)
-
+#
 #gamail = Gmail(app)
 #test = gamail.reminder  # test the connection with gmail server
 app.config['MAIL_SERVER']='smtp.googlemail.com'
@@ -24,10 +21,8 @@ app.config['MAIL_USE_TLS'] = True
 app.config['MAIL_USE_SSL'] = False
 mail = Mail(app)
 
-
-pp_parent_folder = r'flask_package\pp'
-
-
+#pp_parent_folder = r'flask_package\pp'
+pp_parent_folder = r'C:\\Users\\selon\\Documents\\Bete Christian\\Mezmur'
 
 #events to display on calendar card. Go to index page and call this array once you pass through home function
 events = [
@@ -43,9 +38,10 @@ events = [
 
 #A function to load geez alphabate to latin alphabate transition and put it in Map
 def geez_alpha_database():
-    file_loc = r"flask_package\doc\GeezEnglishAlphabetSingle.xlsx" # change this to your file location
+    #file_loc = r"flask_package\\doc\\GeezEnglishAlphabetSingle.xlsx" # change this to your file location
+    file_loc = r"C:\\Users\\selon\\Documents\\Projects\\VSprojects\\python\\flask\teaching-assistance\\flask_package\\doc\\GeezEnglishAlphabetSingle.xlsx"
     df = pd.read_excel(file_loc) # read the excel file into a dataframe
-    map = {} # create an empty map
+    map = {} # create an empty map: key is Geez, value is English
     for index, row in df.iterrows(): # iterate over the rows
         key = row.iloc[0] # get the first element of the row as the key
         value = row.iloc[1] # get the second element of the row as the value
@@ -90,8 +86,10 @@ def translate_tig_eng(my_text):
 # A route to display a form for the user to enter a paragraph in Geez alphabet
 @app.route("/")
 def index():
-    files = os.listdir(r'flask_package\pp')
-    return render_template("index.html", files=files, events=events)
+    #files = os.listdir(r'flask_package\pp')
+    #return render_template("index.html", files=files, events=events)
+    files = os.listdir(r"C:\\Users\\selon\\Documents\\Bete Christian\\Mezmur")
+    return render_template("index.html")
 
 #A function that returns text from given/selected PowerPoint file.
 @app.route('/display/<filename>')
