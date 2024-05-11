@@ -75,3 +75,24 @@ from flask_sqlalchemy import SQLAlchemy
 app.config['SQLALCHEMY_DATABASE_URL'] = ''
 db = SQLAlchemy (app)'
 
+#directory in flask app / docker image
+2024-05-08 02:37:06 Traceback (most recent call last):
+2024-05-08 02:37:06   File "/app/app.py", line 1, in <module>
+2024-05-08 02:37:06     from flask_package import app
+2024-05-08 02:37:06   File "/app/flask_package/__init__.py", line 57, in <module>
+
+#Limit resource for docker image (https://phoenixnap.com/kb/docker-memory-and-cpu-limit)
+#Set Swap to Disk Memory Limit
+##Swap allows Docker to store data by writing directly to the disk after exhausting all RAM assigned to the container.
+docker run -dit --memory="512m" --memory-swap="1g" nginx
+#Set Soft Limit to Container Memory
+docker run -dit --memory="1g" --memory-reservation="512m" nginx
+docker stats
+#Limit Number of CPU Cores
+docker run -dit --cpus="1.0" nginx
+#port
+docker run -d -p 5000:5000 teaching-assistance-01
+
+docker run -d -p 5000:5000 -dit --memory="1g" --memory-reservation="512m" --cpus="1.0" teaching-assistance-01
+
+
