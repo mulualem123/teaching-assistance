@@ -16,12 +16,13 @@ app = Flask(__name__)
 app.config['MAIL_SERVER']='smtp.googlemail.com'
 app.config['MAIL_PORT'] = 587
 app.config['MAIL_USERNAME'] = 'mulualem.hailom@gmail.com'
-app.config['MAIL_PASSWORD'] = 'mhubxjwvchnsahsn'
+app.config['MAIL_PASSWORD'] = ''
 app.config['MAIL_USE_TLS'] = True
 app.config['MAIL_USE_SSL'] = False
 mail = Mail(app)
 
 #pp_parent_folder = r'C:\\Users\\selon\\Documents\\Bete Christian\\Mezmur'
+#pp_parent_folder = r'C:/Users/MulleTec001/OneDrive/Documents/flask/teaching-assistance/flask_package/pp'
 pp_parent_folder = r'C:/Users/selon/Documents/Bete Christian/Mezmur'
 #pp_parent_folder = r'/python-docker/flask_package/pp'
 
@@ -169,10 +170,34 @@ def convert():
         mail.send(msg)
         flash("email have been sent successfuly")
         return render_template('index.html')
-    
-@app.route("/try_it")
-def try_it():
-    
-    return render_template("index.html") 
+
+#Configuration
+app.config['UPLOAD_FOLDER'] = pp_parent_folder
+app.config['ALLOWED_EXTENSIONS'] = {'pdf','pptx','ppt'}
+#Ensure the upload folder exists
+os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+#Check if the file extension is allowed
+def allowed_file(filename):
+    return '.' in filename and \
+        filename.rsplit('.', 1)[1].lower() in app.config['ALLOWED_EXTENSIONS']
+@app.route("/uplaod", methods=['POST'])
+def uplaod_file ():
+    #check if the post request has the file part
+    if 'file' not in rq.files:
+        return render_template('index.html')
+    file = rq.files['file']
+    #Check if for empty file and has no name
+    if file.filename == '':
+        return render_template ('index.html')
+    if file and allowed_file(file.filename):
+        filename = secure_filename(file.filename)
+        file.save(os.path.join(app.config['UPLOAD_FOLDER'],filename))
+        return 'File uploaded and processed successfully'
+    else:
+        return 'File type not allowed'
+
  
 app.config["SECRET_KEY"]= b'\xa4\x99hM\x12s\xc3\x8d'
+
+
+    
