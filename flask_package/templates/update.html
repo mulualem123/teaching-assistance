@@ -11,7 +11,7 @@
     <!--fullcalendar-->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/fullcalendar@5.5.0/main.min.css">
     <script src="https://cdn.jsdelivr.net/npm/fullcalendar@5.5.0/main.min.js"></script>
-</head>     
+</head> 
 <body>
     <header>
         {%include 'navbar.html'%}
@@ -41,52 +41,44 @@
                 card.style.display = 'none';
               }
             }
-            function closeTranslation(){
-                var card = document.getElementById('card');
-                card.style.display = 'none';
-            }
         </script>
     </header>
     <main>
-        <div class="p-2 card mb-3 border-light" style="max-width:18rem; height: 21rem;">
-            <div class="card-header">
-              Events
+      <dev class="d-flex flex-wrap">
+        <div class="p-2 mb-3">
+          <form action="/pushupdate" method="POST">
+            <div class="mb-3">
+              <label for="id" class="form-label">ID </label>
+              <input class="form-control" name="id" type="text" placeholder="Default input" aria-label="default input example" value="{{mezdata[0]}}" disabled>
+            <div class="mb-3">
+              <label for="title" class="form-label">Title</label>
+              <input class="form-control" name="title" type="text" placeholder="Default input" aria-label="default input example" value="{{mezdata[1]}}">
             </div>
-            <ul class="list-group list-group-flush" style="overflow: auto;" >
-                {% for event in events %}
-                <P>{{ event.title }} on {{ event.date }}</p>
-                {% endfor %}
-            </ul>
+            <div>  
+              <label for="titleen" class="form-label">Titleen</label>
+              <input class="form-control" name="titleen" type="text" placeholder="Default input" aria-label="default input example" value="{{mezdata[2]}}">
+            </div>
+            <div>
+              <label for="geez_text" class="form-label">Azmach</label>
+              <textarea id="floatingTextarea" name="geez_text" class="form-control" rows="5" cols="25" >{{mezdata[3]}}</textarea>
+            </div>
+            <div>  
+              <label for="alpha_text" class="form-label">Azmachen</label>
+              <textarea id="floatingTextarea" name="alpha_text" class="form-control" rows="5" cols="25" >{{mezdata[4]}}</textarea>
+            </div>  
+            <div>  
+              <input type="submit" value="Update" name="t_update" class="form-control" aria-label="default input example">
+            </div> 
+          </form>
         </div>
-        <div class="p-2 card mb-3 border-light" style="width:36rem; height: 40rem;">
-            <div class="card-header">
-              Calander
-            </div>
-            <div class="card-body" id="calendar">
-            <script>    
-                let calendarEl = document.getElementById('calendar');
-                let calendar = new FullCalendar.Calendar(calendarEl, {
-                    events: [
-                    {% for event in events %}
-                    {
-                        title: '{{ event.title }}',
-                        start: '{{ event.date }}',
-                    },
-                    {% endfor %}
-                    ]
-                });
-        
-                calendar.render();            
-            </script>
-            </div>
-        </div>
+      </div>
     </main>
     <footer style= "background-color:#e8f2fc; padding: 2%; margin: auto; margin-top: 20px;" >
-        © 2021 Copyright:
-        <a href="#">Ge'ez Translator</a>
-        <div >
-            <p> <h3> Footer</h3>  </p>
-        </div>        
+    © 2021 Copyright:
+    <a href="#">Ge'ez Translator</a>
+    <div >
+        <p> <h3> Footer</h3>  </p>
+    </div>        
     </footer>
 </body>
-</html>
+</html>    

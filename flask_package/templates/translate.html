@@ -1,0 +1,149 @@
+<html>
+<head>
+    <title>School Management</title>
+    <!--<meta http-equiv="refresh" content="30"> -->
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"> 
+	<!-- Bootstrap CSS -->    
+    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.11.8/dist/umd/popper.min.js" integrity="sha384-I7E8VVD/ismYTF4hNIPjVp/Zjvgyol6VFvRkX/vR+Vc4jQkC+hVqc2pM8ODewa9r" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.min.js" integrity="sha384-BBtl+eGJRgqQAUMxJ7pMwbEyER4l1g+O15P+16Ep7Q9Q+zqX6gSbd85u4mG4QzX+" crossorigin="anonymous"></script>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-1BmE4kWBq78iYhFldvKuhfTAU6auU8tT94WrHftjDbrCEXSU1oBoqyl2QvZ6jIW3" crossorigin="anonymous">
+    <!--fullcalendar-->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/fullcalendar@5.5.0/main.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/fullcalendar@5.5.0/main.min.js"></script>
+</head>     
+<body>
+    <header>
+        {%include 'navbar.html'%}
+        <br/>
+        <article class="flashes">                       <!-- Flashing -->
+            {%with messages = get_flashed_messages()%}
+                {%if messages%}
+                    <ul>
+                        {% for message in messages%}
+                        <div class="alert alert-success alert-dismissible fade show" role="alert">
+                          {{message}}
+                          <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                        </div>
+                            
+                        {%endfor%}
+                    </ul>
+                {%endif%}
+            {% endwith %}    
+        </article>
+        <br/>
+        <script>
+            function toggleCard() {
+              var card = document.getElementById('card');
+              if (card.style.display === 'none') {
+                card.style.display = 'block';
+              } else {
+                card.style.display = 'none';
+              }
+            }
+            function closeTranslation(){
+                var card = document.getElementById('card');
+                card.style.display = 'none';
+            }
+        </script>
+    </header>
+    <main>
+        <div class="d-flex justify-content-left flex-wrap">
+            <div class="p-2 card border-light mb-3" style="max-width: 18rem;">
+                <div class="card-header"><a href="{{url_for('translate')}}">Geez/Tigrigna</a></div>
+                <div class="card-body">
+                <h5 class="card-title">Insert your tigrigna word</h5>
+                <form action="/convert" method="POST">
+                    <label for="geez_text">Enter your text in Geez alphabet:</label>
+                    <textarea id="floatingTextarea" name="geez_text" class="form-control" placeholder="{{text}}" rows="5" cols="25" >{{text}}</textarea>
+                    <input type="submit" value="Convert" name="t_convert" class="form-control" aria-label="default input example">
+                </form>
+                <button onclick="toggleCard()">Translate</button>
+                            <!-- Button trigger modal -->
+                <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#exampleModal">
+                    Preview
+                </button>
+                </div>
+            </div>
+
+
+            <!-- Modal -->
+            <div class="modal fade" id="exampleModal" tabindex="-1" aria-labelledby="exampleModalLabel" aria-hidden="true" >
+              <div class="modal-dialog modal-xl modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                  <div class="modal-header">
+                    <h1 class="modal-title fs-5" id="exampleModalLabel">Modal title</h1>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                  </div>
+                  <div class="modal-body">
+                    <div class="container-fluid">
+                        <div class="row">
+                          <div class="col-md-3 ms-auto"><p>  {{text}} </p></div>
+                          <div class="col-md-3 ms-auto"><p> {{latin_text}} </p></div>
+                          <div class="col-md-3 ms-auto"><p> {{translated_text}} </p></div>
+                        </div>
+                    </div>
+                  </div>
+                  <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <button type="button" class="btn btn-primary">Save changes</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <!-- <div class="p-2 card border-light mb-3" style="max-width: 18rem;">
+                <div class="card-header">Uplaod File</div>
+                <div class="card-body">
+                    <h5 class="card-title">Upload pp here</h5>
+                    <form action="/uplaod" method="POST">
+                        <input type="file" name="file" class="form-control" aria-label="default input example">
+                        <input type="submit" value="upload" name="Upload" class="form-control" aria-label="default input example">
+                    </form>
+                </div>
+            </div> --> 
+            <div class="p-2 card border-light mb-3" style="max-width: 18rem;">
+                <div class="card-header"><a href="{{url_for('translate')}}">In Latin Alphabet</a></div>
+                <div class="card-body">
+                    <h5 class="card-title">Here is your Geez/Tigryna word converted into Latin alphabet.</h5>
+                    <p class="card-text"><div class="d-print-none border container-fluid container-sm"><p>{{ latin_text }}</p></div></p>
+                </div>
+            </div>
+            <div id="card" class="p-2 card border-light mb-3" style="max-width: 18rem; display: none;" >
+                <div class="card-header">
+                    <!--<h5 class="modal-title">Modal title</h5>
+                    <button type="button" class="btn-close sticky-top" data-bs-dismiss="modal" aria-label="Close"></button> -->
+                    <P><a href="{{url_for('translate')}}">Translation</a></p>
+                    <button type="button" class="btn-close sticky-top" aria-label="Close" onclick="closeTranslation()"></button>
+                </div>
+                <div class="card-body">
+                    <h5 class="card-title">{{ lg_text }}</h5>
+                    <p>This translation might not be accurate!</p>
+                    <p class="card-text"><div class="d-print-none border container-fluid container-xl"><p>{{ translated_text }}</p></div></p>
+                </div>
+            </div>
+            <div class="p-2 card mb-3 border-light" style="max-width:18rem; height: 21rem;">
+                <div class="card-header">
+                    <a href="{{url_for('translate')}}">Mezmur Files</a>
+                    <form action="/uplaod" method="POST">
+                        <input type="file" name="file" class="form-control" aria-label="default input example">
+                        <input type="submit" value="upload" name="Upload" class="form-control" aria-label="default input example">
+                    </form>
+
+                </div>
+                <ul class="list-group list-group-flush" style="overflow: auto;" >
+                    {% for file in files %}
+                    <li class="list-group-item"><a href="{{ url_for('display', filename=file) }}">{{ file }}</a></li>
+                    {% endfor %}
+                </ul>
+            </div>
+            
+    </main>
+    <footer style= "background-color:#e8f2fc; padding: 2%; margin: auto; margin-top: 20px;" >
+        © 2021 Copyright:
+        <a href="#">Ge'ez Translator</a>
+        <div >
+            <p> <h3> Footer</h3>  </p>
+        </div>        
+    </footer>
+</body>
+</html>

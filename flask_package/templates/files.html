@@ -48,38 +48,22 @@
         </script>
     </header>
     <main>
-        <div class="p-2 card mb-3 border-light" style="max-width:18rem; height: 21rem;">
-            <div class="card-header">
-              Events
-            </div>
-            <ul class="list-group list-group-flush" style="overflow: auto;" >
-                {% for event in events %}
-                <P>{{ event.title }} on {{ event.date }}</p>
-                {% endfor %}
-            </ul>
-        </div>
-        <div class="p-2 card mb-3 border-light" style="width:36rem; height: 40rem;">
-            <div class="card-header">
-              Calander
-            </div>
-            <div class="card-body" id="calendar">
-            <script>    
-                let calendarEl = document.getElementById('calendar');
-                let calendar = new FullCalendar.Calendar(calendarEl, {
-                    events: [
-                    {% for event in events %}
-                    {
-                        title: '{{ event.title }}',
-                        start: '{{ event.date }}',
-                    },
+            <div class="p-2 card mb-3 border-light" style="max-width:18rem; height: 21rem;">
+                <div class="card-header">
+                  Mezmur Files
+                    <form action="/uplaod" method="POST">
+                        <input type="file" name="file" class="form-control" aria-label="default input example">
+                        <input type="submit" value="upload" name="Upload" class="form-control" aria-label="default input example">
+                    </form>
+
+                </div>
+                <ul class="list-group list-group-flush" style="overflow: auto;" >
+                    {% for file in files %}
+                    <li class="list-group-item"><a href="{{ url_for('display', filename=file) }}">{{ file }}</a></li>
                     {% endfor %}
-                    ]
-                });
-        
-                calendar.render();            
-            </script>
+                </ul>
             </div>
-        </div>
+            
     </main>
     <footer style= "background-color:#e8f2fc; padding: 2%; margin: auto; margin-top: 20px;" >
         © 2021 Copyright:

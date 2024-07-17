@@ -96,3 +96,12 @@ docker run -d -p 5000:5000 teaching-assistance-01
 docker run -d -p 5000:5000 -dit --memory="1g" --memory-reservation="512m" --cpus="1.0" teaching-assistance-01
 
 
+#sqlite3
+flask --app flask_package init-db #This function initializes the database by executing the SQL commands from the schema.sql file.
+flask --app flask_package --help 
+        #init-db  Clear the exitsting data and create new tables
+        #routes   Show the routes for the app.
+        #run      Run a development server.
+        #shell    Run a shell in the app context.
+        
+<td><li class="list-group-item"><a href="{{ url_for('displayfromtable', mezmurid = row[0]) }}">{{ row[3] }}</a></li></td>

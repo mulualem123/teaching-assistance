@@ -1,16 +1,18 @@
 <html>
 <head>
-    <title>Convert Tigrigna alphabet to Latin alphabet</title>
+    <title>School Management</title>
     <!--<meta http-equiv="refresh" content="30"> -->
-    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta charset="UTF-8" http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1.0"> 
-	<!-- Bootstrap CSS -->    
-    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.11.8/dist/umd/popper.min.js" integrity="sha384-I7E8VVD/ismYTF4hNIPjVp/Zjvgyol6VFvRkX/vR+Vc4jQkC+hVqc2pM8ODewa9r" crossorigin="anonymous"></script>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.min.js" integrity="sha384-BBtl+eGJRgqQAUMxJ7pMwbEyER4l1g+O15P+16Ep7Q9Q+zqX6gSbd85u4mG4QzX+" crossorigin="anonymous"></script>
+    <!-- Bootstrap CSS -->   
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-1BmE4kWBq78iYhFldvKuhfTAU6auU8tT94WrHftjDbrCEXSU1oBoqyl2QvZ6jIW3" crossorigin="anonymous">
     <!--fullcalendar-->
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/fullcalendar@5.5.0/main.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/fullcalendar@5.5.0/main.min.css"> 
+    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.11.8/dist/umd/popper.min.js" integrity="sha384-I7E8VVD/ismYTF4hNIPjVp/Zjvgyol6VFvRkX/vR+Vc4jQkC+hVqc2pM8ODewa9r" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.min.js" integrity="sha384-BBtl+eGJRgqQAUMxJ7pMwbEyER4l1g+O15P+16Ep7Q9Q+zqX6gSbd85u4mG4QzX+" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/fullcalendar@5.5.0/main.min.js"></script>
+    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+
 </head>     
 <body>
     <header>
@@ -31,21 +33,120 @@
                 {%endif%}
             {% endwith %}    
         </article>
+        <br/>
+        <script>
+            function toggleCard() {
+              var card = document.getElementById('card');
+              if (card.style.display === 'none') {
+                card.style.display = 'block';
+              } else {
+                card.style.display = 'none';
+              }
+            }
+            function closeTranslation(){
+                var card = document.getElementById('card');
+                card.style.display = 'none';
+            }
+
+            const tooltipTriggerList = document.querySelectorAll('[data-bs-toggle="tooltip"]')
+            const tooltipList = [...tooltipTriggerList].map(tooltipTriggerEl => new bootstrap.Tooltip(tooltipTriggerEl)) 
+
+            $(function () {
+                $('[data-bs-toggle="tooltip"]').tooltip();
+            });
+
+        </script>
+
     </header>
     <main>
-        <div class="d-flex justify-content-left flex-wrap">
-            <div class="p-2 card border-light mb-3" style="max-width: 18rem;">
-                <div class="card-header">Geez/Tigrigna</div>
+        <!-- Preview Modal -->
+        <div class="modal fade" id="exampleModal" tabindex="-1" aria-labelledby="exampleModalLabel" aria-hidden="true" >
+            <div class="modal-dialog modal-xl modal-dialog modal-dialog-centered">
+              <div class="modal-content">
+                <div class="modal-header">
+                  <h1 class="modal-title fs-5" id="exampleModalLabel">Modal title</h1>
+                  <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                  <div class="container-fluid">
+                      <div class="row">
+                        <div class="col-md-3 ms-auto"><p>  {{text}} </p></div>
+                        <div class="col-md-3 ms-auto"><p> {{latin_text}} </p></div>
+                        <div class="col-md-3 ms-auto"><p> {{translated_text}} </p></div>
+                      </div>
+                  </div>
+                </div>
+                <div class="modal-footer">
+                  <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                  <button type="button" class="btn btn-primary">Save changes</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        <!-- Slide Show Modal --> 
+        <div id="carouselExampleAutoplaying" class="carousel slide mx-4" data-bs-ride="carousel">
+            <div class="carousel-inner">
+              <div class="carousel-item active " data-bs-interval="10000">
+                <img src="{{url_for('static', filename=imageslide1)}}" class=" d-block w-100 h-100" alt="Mezmur">
+                <div class="carousel-caption d-none d-md-block">
+                    <h5>First slide label</h5>
+                    <p>Some representative placeholder content for the first slide.</p>
+                  </div>
+              </div>
+              <div class="carousel-item " data-bs-interval="10000">
+                <img src="{{url_for('static', filename=imageslide2)}}" class=" d-block w-100 h-100" alt="Prayer">
+                <div class="carousel-caption d-none d-md-block">
+                    <h5>First slide label</h5>
+                    <p>Some representative placeholder content for the first slide.</p>
+                  </div>
+              </div>
+              <div class="carousel-item " data-bs-interval="10000">
+                <img src="{{url_for('static', filename=imageslide3)}}" class=" d-block w-100 h-100" alt="Article">
+                <div class="carousel-caption d-none d-md-block">
+                    <h5>First slide label</h5>
+                    <p>Some representative placeholder content for the first slide.</p>
+                  </div>
+              </div>
+            </div>
+            <button class="carousel-control-prev" type="button" data-bs-target="#carouselExampleAutoplaying" data-bs-slide="prev">
+              <span class="carousel-control-prev-icon" aria-hidden="true"></span>
+              <span class="visually-hidden">Previous</span>
+            </button>
+            <button class="carousel-control-next" type="button" data-bs-target="#carouselExampleAutoplaying" data-bs-slide="next">
+              <span class="carousel-control-next-icon" aria-hidden="true"></span>
+              <span class="visually-hidden">Next</span>
+            </button>
+         </div>
+        <!-- Cards -->
+        <div class="d-flex justify-content-let flex-wrap">
+            <!-- Geez Input Field -->
+            <div class="p-2 card border-secondary-subtle my-3 mx-2" style="max-auto; min-width: 22%">
+                <div class="card-header hstack gap-3">
+                    <div><a href="{{url_for('translate')}}">Geez/Tigrigna</a></div>
+                    <div class="p-2 ms-auto">
+                        <button type="button" class="btn btn-primary"  data-toggle="tooltip" data-placement="bottom" title="Enter your text in Geez alphabet. Your word, sentence, and pargraph will be changed to English alphabet word, sentence, and paragraph on the In Latin ALphabet." >
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-info-circle" viewBox="0 0 16 16" >
+                                <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14m0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16"/>
+                                <path d="m8.93 6.588-2.29.287-.082.38.45.083c.294.07.352.176.288.469l-.738 3.468c-.194.897.105 1.319.808 1.319.545 0 1.178-.252 1.465-.598l.088-.416c-.2.176-.492.246-.686.246-.275 0-.375-.193-.304-.533zM9 4.5a1 1 0 1 1-2 0 1 1 0 0 1 2 0"/>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
                 <div class="card-body">
-                <h5 class="card-title">Insert your tigrigna word</h5>
+                <!-- Delete <h5 class="card-title">Insert your tigrigna word</h5>-->
                 <form action="/convert" method="POST">
-                    <label for="geez_text">Enter your text in Geez alphabet:</label>
-                    <textarea id="floatingTextarea" name="geez_text" class="form-control" placeholder="{{text}}" rows="5" cols="25" ></textarea>
+                <!-- Delete    <label for="geez_text">Enter your text in Geez alphabet:</label> -->
+                    <textarea id="floatingTextarea" name="geez_text" class="form-control" placeholder="Enter Geez letter. Eg: አብዙይ ናይግዕዝ ፊደል እትው። " rows="5" cols="25" >{{text}}</textarea>
                     <input type="submit" value="Convert" name="t_convert" class="form-control" aria-label="default input example">
                 </form>
+                <button type="button" class="btn btn-primary" onclick="toggleCard()">Translate</button>
+                            <!-- Button trigger modal -->
+                <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#exampleModal">  Preview </button>
                 </div>
-            </div>
-            <div class="p-2 card border-light mb-3" style="max-width: 18rem;">
+             </div>
+
+            <!-- <div class="p-2 card border-light mb-3" style="max-width: 18rem;">
                 <div class="card-header">Uplaod File</div>
                 <div class="card-body">
                     <h5 class="card-title">Upload pp here</h5>
@@ -54,33 +155,84 @@
                         <input type="submit" value="upload" name="Upload" class="form-control" aria-label="default input example">
                     </form>
                 </div>
-            </div>
-            <div class="p-2 card border-light mb-3" style="max-width: 18rem;">
-                <div class="card-header">In Latin Alphabet</div>
+             </div> --> 
+            <!-- Latin Alphabet Output -->
+            <div class="p-2 card border-secondary-subtle my-3 mx-2" style="max-width: 21rem; min-width: 22%;">
+                <div class="card-header gap-3 hstack">
+                    <div> <a href="{{url_for('translate')}}">In Latin Alphabet</a><i class="bi bi-info-circle"> </i> </div>
+                    <div class="p-2 ms-auto"> 
+                        <a href="#" data-toggle="tooltip" data-placement="bottom" title="Here is your Geez/Tigryna word converted into Latin alphabet">
+                            <i class="fas fa-link">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-info-circle" viewBox="0 0 16 16" >
+                                    <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14m0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16"/>
+                                    <path d="m8.93 6.588-2.29.287-.082.38.45.083c.294.07.352.176.288.469l-.738 3.468c-.194.897.105 1.319.808 1.319.545 0 1.178-.252 1.465-.598l.088-.416c-.2.176-.492.246-.686.246-.275 0-.375-.193-.304-.533zM9 4.5a1 1 0 1 1-2 0 1 1 0 0 1 2 0"/>
+                                </svg>  
+                            </i>
+                        </a> 
+                    </div>
+                </div>
                 <div class="card-body">
-                    <h5 class="card-title">Here is your Geez/Tigryna word converted into Latin alphabet.</h5>
-                    <p class="card-text"><div class="d-print-none border container-fluid container-sm"><p>{{ latin_text }}</p></div></p>
+                    <!--<h5 class="card-title">Here is your Geez/Tigryna word converted into Latin alphabet.</h5>-->
+                    <p class="card-text" placeholder="Here you will see the geez word you entered coverted to english alphabet. Eg: ebzuy naygOz fidel Atw."><div class="d-print-none border container-fluid container-sm"><p>{{ latin_text }}</p></div></p>
                 </div>
-            </div>
-            <div class="p-2 card border-light mb-3" style="max-width: 18rem;">
-                <div class="card-header">Translation</div>
+             </div>
+            <!-- Translation-->
+            <div id="card" class="p-2 card border-secondary-subtle my-3 mx-2" style="max-width: 20rem; min-width: 22%; display: none;" >
+                <div class="card-header hstack gap-3">
+                   <!--<h5 class="modal-title">Modal title</h5>
+                   <button type="button" class="btn-close sticky-top" data-bs-dismiss="modal" aria-label="Close"></button> -->
+                   <div><a href="{{url_for('translate')}}">Translation</a></div>
+                   <div class="p-2 ms-auto">
+                       <!-- <button type="button" class="btn-close sticky-top" aria-label="Close" onclick="closeTranslation()"></button>-->
+                       <button type="button" class="sticky-top btn btn-primary" onclick="closeTranslation()">
+                           <i class="bi bi-x-circle">
+                               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-x-circle" viewBox="0 0 16 16">
+                                   <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14m0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16"/>
+                                   <path d="M4.646 4.646a.5.5 0 0 1 .708 0L8 7.293l2.646-2.647a.5.5 0 0 1 .708.708L8.707 8l2.647 2.646a.5.5 0 0 1-.708.708L8 8.707l-2.646 2.647a.5.5 0 0 1-.708-.708L7.293 8 4.646 5.354a.5.5 0 0 1 0-.708"/>
+                                 </svg>
+                           </i>
+                       </button>
+                       <button type="button" class="btn btn-primary"  data-toggle="tooltip" data-placement="bottom" title="This translation might not be accurate!" >
+                           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-info-circle" viewBox="0 0 16 16" >
+                               <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14m0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16"/>
+                               <path d="m8.93 6.588-2.29.287-.082.38.45.083c.294.07.352.176.288.469l-.738 3.468c-.194.897.105 1.319.808 1.319.545 0 1.178-.252 1.465-.598l.088-.416c-.2.176-.492.246-.686.246-.275 0-.375-.193-.304-.533zM9 4.5a1 1 0 1 1-2 0 1 1 0 0 1 2 0"/>
+                           </svg>
+                       </button>
+                   </div>
+                </div>
                 <div class="card-body">
-                    <h5 class="card-title">{{ lg_text }}</h5>
-                    <p>This translation might not be accurate!</p>
-                    <p class="card-text"><div class="d-print-none border container-fluid container-xl"><p>{{ translated_text }}</p></div></p>
+                       <h5 class="card-title">{{ lg_text }}</h5>
+                       <!-- <p>This translation might not be accurate!</p> -->
+                       <p class="card-text" placeholder="Incorporate in this Geez alphabet."><div class="d-print-none border container-fluid container-xl"><p>{{ translated_text }}</p></div></p>
+                   </div>
+             </div>
+            <!-- Mezmur Files -->    
+            <div class="p-2 card my-3 mx-2 border-secondary-subtle " style="max-width:18rem; min-width: 22%; height: 21rem;">
+                <div class="card-header gap-3 hstack">
+                    <div><a href="{{url_for('files')}}">Mezmur Files</a></div>
+                    <div class="p-2 ms-auto"> 
+                        <a href="#" data-toggle="tooltip" data-placement="bottom" title="Go to Example">
+                            <i class="fas fa-link">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-info-circle" viewBox="0 0 16 16" >
+                                    <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14m0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16"/>
+                                    <path d="m8.93 6.588-2.29.287-.082.38.45.083c.294.07.352.176.288.469l-.738 3.468c-.194.897.105 1.319.808 1.319.545 0 1.178-.252 1.465-.598l.088-.416c-.2.176-.492.246-.686.246-.275 0-.375-.193-.304-.533zM9 4.5a1 1 0 1 1-2 0 1 1 0 0 1 2 0"/>
+                                </svg>  
+                            </i>
+                        </a> 
+                    </div>
                 </div>
-            </div>
-            <div class="p-2 card mb-3 border-light" style="max-width:18rem; height: 21rem;">
-                <div class="card-header">
-                  Mezmur Files
-                </div>
+                <form action="/uplaod" method="POST">
+                    <input type="file" name="file" class="form-control" aria-label="default input example">
+                    <input type="submit" value="upload" name="Upload" class="form-control" aria-label="default input example">
+                </form>
                 <ul class="list-group list-group-flush" style="overflow: auto;" >
                     {% for file in files %}
                     <li class="list-group-item"><a href="{{ url_for('display', filename=file) }}">{{ file }}</a></li>
                     {% endfor %}
                 </ul>
-            </div>
-            <div class="p-2 card mb-3 border-light" style="max-width:18rem; height: 21rem;">
+             </div>
+            <!-- Classes -->
+            <div class="p-2 card my-3 mx-2 border-secondary-subtle" style="max-width:18rem; min-width: 22%; height: 21rem;">
                 <div class="card-header">
                   Class
                 </div>
@@ -89,8 +241,9 @@
                     <li class="list-group-item"><a href="{{ url_for('display', filename=file) }}">{{ file }}</a></li>
                     {% endfor %}
                 </ul>
-            </div>
-            <div class="p-2 card mb-3 border-light" style="max-width:18rem; height: 21rem;">
+             </div>
+            <!-- Events -->
+            <div class="p-2 card my-3 mx-2 border-secondary-subtle" style="max-width:18rem; min-width: 22%; height: 21rem;">
                 <div class="card-header">
                   Events
                 </div>
@@ -99,8 +252,10 @@
                     <P>{{ event.title }} on {{ event.date }}</p>
                     {% endfor %}
                 </ul>
-            </div>
-            <div class="p-2 card mb-3 border-light" style="width:36rem; height: 40rem;">
+             </div>
+         </div>
+        <!--Calander-->
+        <!--<div class="p-2 card mb-3 border-light" style="width:36rem; height: 40rem;">
                 <div class="card-header">
                   Calander
                 </div>
@@ -122,8 +277,48 @@
                     calendar.render();            
                 </script>
                 </div>
+            </div> -->
+            <!-- <div class="row p-2 card mb-3 border-light">
+                <table class="table table-bordered">
+                    <thead>
+                        <tr>
+                            <th>ID No.</th>
+                            <th>Title</th>
+                            <th>Mezmur</th>
+                            <th>File Name</th>
+                            <th>Date</th>
+                            <th>Update</th>
+                            <th>Delete</th> -->
+                            <!-- Add more columns as needed --> 
+                <!--        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in rows %}
+                            <tr>
+                                <td><li class="list-group-item"><a href={{ url_for('selected',id=row[0]) }}>{{ row[0] }}</a></td>
+                                <td>{{ row[1] }}</td>
+                                <td>{{ row[3] }}</td>
+                                <td>{{ row[5] }}</td>
+                                <td>{{ row[6] }}</td>
+                                <td><li class="list-group-item"><a href="{{ url_for('update',id=row[0])}}">Update</a></li></td>
+                                <td><li class="list-group-item"><a href="{{ url_for('delete',id=row[0]) }}">Delete</a></li></td> -->
+                                <!-- Add more cells for other columns -->
+                          <!--  </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>                
+            </div> -->
+            <!--<div class="p-2 card mb-3 border-light" style="max-width:18rem; height: 21rem;">
+                <div class="card-header">
+                  Class
+                </div>
+                <ul class="list-group list-group-flush" style="overflow: auto;" >
+                    {% for mezmur in mezmurs %}
+                    <li class="list-group-item"><a href="{{ url_for('display', filename=file) }}">{{ mezmur }}</a></li>
+                    {% endfor %}
+                </ul>
             </div>
-        </div>
+         </div> -->
            
     </main>
     <footer style= "background-color:#e8f2fc; padding: 2%; margin: auto; margin-top: 20px;" >

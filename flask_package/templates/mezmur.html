@@ -24,8 +24,7 @@
                         <div class="alert alert-success alert-dismissible fade show" role="alert">
                           {{message}}
                           <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-                        </div>
-                            
+                        </div>        
                         {%endfor%}
                     </ul>
                 {%endif%}
@@ -48,38 +47,39 @@
         </script>
     </header>
     <main>
-        <div class="p-2 card mb-3 border-light" style="max-width:18rem; height: 21rem;">
-            <div class="card-header">
-              Events
+            <div class="row p-2 card mb-3 border-light">
+                <table class="table table-bordered">
+                    <thead>
+                        <tr>
+                            <th>ID No.</th>
+                            <th>Title</th>
+                            <th>መዝሙር</th>
+                            <th>Mezmur</th>
+                            <th>File Name</th>
+                            <th>Date</th>
+                            <th>Update</th>
+                            <th>Delete</th>
+                            <!-- Add more columns as needed -->
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in rows %}
+                            <tr>
+                                <td><li class="list-group-item"><a href={{ url_for('selected',id=row[0]) }}>{{ row[0] }}</a></td>
+                                <td>{{ row[1] }}</td>
+                                <td>{{ row[3] }}</td>
+                                <td>{{ row[4] }}</td>
+                                <td>{{ row[5] }}</td>
+                                <td>{{ row[6] }}</td>
+                                <td><li class="list-group-item"><a href="{{ url_for('update',id=row[0])}}">Update</a></li></td>
+                                <td><li class="list-group-item"><a href="{{ url_for('delete',id=row[0]) }}">Delete</a></li></td>
+                                <!-- Add more cells for other columns -->
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>                
             </div>
-            <ul class="list-group list-group-flush" style="overflow: auto;" >
-                {% for event in events %}
-                <P>{{ event.title }} on {{ event.date }}</p>
-                {% endfor %}
-            </ul>
-        </div>
-        <div class="p-2 card mb-3 border-light" style="width:36rem; height: 40rem;">
-            <div class="card-header">
-              Calander
-            </div>
-            <div class="card-body" id="calendar">
-            <script>    
-                let calendarEl = document.getElementById('calendar');
-                let calendar = new FullCalendar.Calendar(calendarEl, {
-                    events: [
-                    {% for event in events %}
-                    {
-                        title: '{{ event.title }}',
-                        start: '{{ event.date }}',
-                    },
-                    {% endfor %}
-                    ]
-                });
-        
-                calendar.render();            
-            </script>
-            </div>
-        </div>
+        </div>       
     </main>
     <footer style= "background-color:#e8f2fc; padding: 2%; margin: auto; margin-top: 20px;" >
         © 2021 Copyright:
