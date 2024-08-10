@@ -3,20 +3,22 @@ import requests
 import pandas as pd
 import fitz as fz
 import sqlite3
-from flask import Flask, render_template,send_from_directory, send_file, request as rq,flash
+from flask import Flask, render_template,send_from_directory, send_file, request as rq, flash
 from pptx import Presentation
 from flask_mail import Mail, Message
+from flask_sqlalchemy import SQLAlchemy #Account creation
+from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user #Account creation
 #from flask_package.mailing import Gmail
 from . import db                #Orginal
 from .extractpp import extract  #Orginal
 from . import googletransfun    #Orginal
 from . import changealphabet    #Orginal
+from . import forms    #Orginal
+from . import changealphabet    #Orginal
 from werkzeug.utils import secure_filename
 
 
 app = Flask(__name__)
-
-geez_text = ""
 
 #pp_parent_folder = r'C:\\Users\\selon\\Documents\\Bete Christian\\Mezmur'
 #pp_parent_folder = r'C:/Users/MulleTec001/OneDrive/Documents/flask/teaching-assistance/flask_package/pp'
@@ -28,9 +30,14 @@ audio_folder = r'flask_package/static/audio/'
 #sqlite3
 #app.config['DATABASE'] = r'/python-docker/flask_package/site.db'
 app.config['DATABASE'] = r'flask_package/instance/site.db'
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///users.db' #Account creation
+
 db.init_app(app) #initiating sqlite3
 print ("sql initiated")
 
+account_db = SQLAlchemy(app)    #Account creation
+login_manager= LoginManager(app)  #Account creation
+login_manager.login_view = 'login'  #Account creation
 
 #gamail = Gmail(app)
 #test = gamail.reminder  # test the connection with gmail server
@@ -48,7 +55,8 @@ app.config['ALLOWED_EXTENSIONS'] = {'pdf','pptx','ppt'}
 #Ensure the upload folder exists
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
-
+#Initialization 
+geez_text = ""
 #events to display on calendar card. Go to index page and call this array once you pass through home function
 events = [
     {
@@ -60,47 +68,46 @@ events = [
         'date': '2024-10-20'
     }
 ]
-
 #A dictionery of key = mezmur id and value = audio name
-audio_dic = { }
-
-
-#A function to load geez alphabate to latin alphabate transition and put it in Map
-def geez_alpha_database():
-    #file_loc = r"flask_package\\doc\\GeezEnglishAlphabetSingle.xlsx" # change this to your file location
-    file_loc = r"C:\\Users\\selon\\Documents\\Projects\\VSprojects\\python\\flask\teaching-assistance\\flask_package\\doc\\GeezEnglishAlphabetSingle.xlsx"
-    df = pd.read_excel(file_loc) # read the excel file into a dataframe
-    map = {} # create an empty map: key is Geez, value is English
-    for index, row in df.iterrows(): # iterate over the rows
-        key = row.iloc[0] # get the first element of the row as the key
-        value = row.iloc[1] # get the second element of the row as the value
-        map[key] = value # store the key-value pair in the map
-        #print(map)
-        for i in range(2, len(row), 2): # iterate over the rest of the elements with a step of 2
-            key = row.iloc[i] # get the next element of the row as the key
-            value = row.iloc[i+1] # get the next element of the row as the value
-            map[key] = value # store the key-value pair in the map
-    return(map)
-
-#my_map = geez_alpha_database()
+audio_dic = { } #Delete
+#my_map = changealphabet.geez_alpha_database()
 my_map = {'ሀ': 'he', 'ለ': 'le', 'ሐ': 'He', 'መ': 'me', 'ሠ': 'se', 'ረ': 're', 'ሰ': 'se', 'ሸ': 'Se', 'ቀ': 'qe', 'ቈ': 'que', 'ቐ': 'Qe', 'ቘ': 'Que', 'በ': 'be', 'ቨ': 've', 'ተ': 'te', 'ቸ': 'ce', 'ኀ': 'h2e', 'ኈ': 'hue', 'ነ': 'ne', 'ኘ': 'Ne', 'አ': 'e', 'ከ': 'ke', 'ኰ': 'kue', 'ኸ': 'Ke', 'ዀ': 'Kue', 'ወ': 'we', 'ዐ': 'Oe', 'ዘ': 'ze', 'ዠ': 'Ze', 'የ': 'ye', 'ደ': 'de', 'ጀ': 'je', 'ገ': 'ge', 'ጐ': 'gue', 'ጠ': 'Te', 'ጨ': 'Ce', 'ጰ': 'Pe', 'ጸ': 'xe', 'ፀ': 'xe', 'ፈ': 'fe', 'ፐ': 'pe', '።': '.', '፩': 1, 8.0: 8.0, '፲': 10, '፹': 80, 'ጘ': 'Ge', 'ⶓ': 'Gue', 'ሇ': 'hoa', 'ኯ': 'koa', 'ዸ': 'd2e', 'ሁ': 'hu', 'ሉ': 'lu', 'ሑ': 'Hu', 'ሙ': 'mu', 'ሡ': 's2u', 'ሩ': 'ru', 'ሱ': 'su', 'ሹ': 'Su', 'ቁ': 'qu', 'ቊ': 'qui', 'ቑ': 'Qu', 'ቚ': 'Qui', 'ቡ': 'bu', 'ቩ': 'vu', 'ቱ': 'tu', 'ቹ': 'cu', 'ኁ': 'h2u', 'ኊ': 'hui', 'ኑ': 'nu', 'ኙ': 'Nu', 'ኡ': 'u', 'ኩ': 'ku', 'ኲ': 'kui', 'ኹ': 'Ku', 'ዂ': 'Kui', 'ዉ': 'wu', 'ዑ': 'Ou', 'ዙ': 'zu', 'ዡ': 'Zu', 'ዩ': 'yu', 'ዱ': 'du', 'ጁ': 'ju', 'ጉ': 'gu', 'ጒ': 'gui', 'ጡ': 'Tu', 'ጩ': 'Cu', 'ጱ': 'Pu', 'ጹ': 'xu', 'ፁ': 'x2u', 'ፉ': 'fu', 'ፑ': 'pu', '፡': ';', '፪': 2, 9.0: 9.0, '፳': 20, '፺': 90, 'ጙ': 'Gu', 'ⶔ': 'Gui', 'ሏ': 'lua', 'ዃ': 'Kua', 'ዹ': 'd2u', 'ሂ': 'hi', 'ሊ': 'li', 'ሒ': 'Hi', 'ሚ': 'mi', 'ሢ': 's2i', 'ሪ': 'ri', 'ሲ': 'si', 'ሺ': 'Si', 'ቂ': 'qi', 'ቋ': 'qua', 'ቒ': 'Qi', 'ቛ': 'Qua', 'ቢ': 'bi', 'ቪ': 'vi', 'ቲ': 'ti', 'ቺ': 'ci', 'ኂ': 'h2i', 'ኋ': 'hua', 'ኒ': 'ni', 'ኚ': 'Ni', 'ኢ': 'i', 'ኪ': 'ki', 'ኳ': 'kua', 'ኺ': 'Ki', 'ዊ': 'wi', 'ዒ': 'Oi', 'ዚ': 'zi', 'ዢ': 'Zi', 'ዪ': 'yi', 'ዲ': 'di', 'ጂ': 'ji', 'ጊ': 'gi', 'ጓ': 'gua', 'ጢ': 'Ti', 'ጪ': 'Ci', 'ጲ': 'Pi', 'ጺ': 'xi', 'ፂ': 'x2i', 'ፊ': 'fi', 'ፒ': 'pi', '፣': ',', '፫': 3, '፴': 30, '" "': '" "', 'ጚ': 'Gi', 'ጟ': 'Gua', 'ሗ': 'Hua', 'ዏ': 'woa', 'ዺ': 'd2i', 'ሃ': 'ha', 'ላ': 'la', 'ሓ': 'Ha', 'ማ': 'ma', 'ሣ': 's2a', 'ራ': 'ra', 'ሳ': 'sa', 'ሻ': 'Sa', 'ቃ': 'qa', 'ቌ': 'quie', 'ቓ': 'Qa', 'ቜ': 'Quie', 'ባ': 'ba', 'ቫ': 'va', 'ታ': 'ta', 'ቻ': 'ca', 'ኃ': 'h2a', 'ኌ': 'huie', 'ና': 'na', 'ኛ': 'Na', 'ኣ': 'a', 'ካ': 'ka', 'ኴ': 'kuie', 'ኻ': 'Ka', 'ዄ': 'Kuie', 'ዋ': 'wa', 'ዓ': 'Oa', 'ዛ': 'za', 'ዣ': 'Za', 'ያ': 'ya', 'ዳ': 'da', 'ጃ': 'ja', 'ጋ': 'ga', 'ጔ': 'guie', 'ጣ': 'Ta', 'ጫ': 'Ca', 'ጳ': 'Pa', 'ጻ': 'xa', 'ፃ': 'x2a', 'ፋ': 'fa', 'ፓ': 'pa', '፥': ':', '፬': 4, '፵': 40, " '": " '", 'ጛ': 'Ga', 'ⶕ': 'Guie', 'ሟ': 'mua', 'ዟ': 'zua', 'ዻ': 'd2a', 'ሄ': 'hie', 'ሌ': 'lie', 'ሔ': 'Hie', 'ሜ': 'mie', 'ሤ': 's2ie', 'ሬ': 'rie', 'ሴ': 'sie', 'ሼ': 'Sie', 'ቄ': 'qie', 'ቍ': 'qW', 'ቔ': 'Qie', 'ቝ': 'QW', 'ቤ': 'bie', 'ቬ': 'vie', 'ቴ': 'tie', 'ቼ': 'cie', 'ኄ': 'h2ie', 'ኍ': 'hW', 'ኔ': 'nie', 'ኜ': 'Nie', 'ኤ': 'ie', 'ኬ': 'kie', 'ኵ': 'kW', 'ኼ': 'Kie', 'ዅ': 'KW', 'ዌ': 'wie', 'ዔ': 'Oie', 'ዜ': 'zie', 'ዤ': 'Zie', 'ዬ': 'yie', 'ዴ': 'die', 'ጄ': 'jie', 'ጌ': 'gie', 'ጕ': 'gW', 'ጤ': 'Tie', 'ጬ': 'Cie', 'ጴ': 'Pie', 'ጼ': 'xie', 'ፄ': 'x2ie', 'ፌ': 'fie', 'ፔ': 'pie', '፤': '::', '፭': 5, '፶': 50, '""': '""', 'ጜ': 'Gie', 'ⶖ': 'GW', 'ሧ': 's2ua', 'ዧ': 'Zua', 'ዼ': 'd2ie', 'ህ': 'h', 'ል': 'l', 'ሕ': 'H', 'ም': 'm', 'ሥ': 's2', 'ር': 'r', 'ስ': 's', 'ሽ': 'S', 'ቅ': 'q', 'ቕ': 'Q', 'ብ': 'b', 'ቭ': 'v', 'ት': 't', 'ች': 'c', 'ኅ': 'h2', 'ን': 'n', 'ኝ': 'N', 'እ': 'A', 'ክ': 'k', 'ኽ': 'K', 'ው': 'w', 'ዕ': 'O', 'ዝ': 'z', 'ዥ': 'Z', 'ይ': 'y', 'ድ': 'd', 'ጅ': 'j', 'ግ': 'g', 'ጥ': 'T', 'ጭ': 'C', 'ጵ': 'P', 'ጽ': 'x', 'ፅ': 'x2', 'ፍ': 'f', 'ፕ': 'p', '፦': ';-', '፮': 6, '፷': 60, 'ጝ': 'G', 'ሯ': 'rua', 'ዯ': 'yoa', 'ዽ': 'd2', 'ሆ': 'ho', 'ሎ': 'lo', 'ሖ': 'Ho', 'ሞ': 'mo', 'ሦ': 's2o', 'ሮ': 'ro', 'ሶ': 'so', 'ሾ': 'So', 'ቆ': 'qo', 'ቖ': 'Qo', 'ቦ': 'bo', 'ቮ': 'vo', 'ቶ': 'to', 'ቾ': 'co', 'ኆ': 'h2o', 'ኖ': 'no', 'ኞ': 'No', 'ኦ': 'o', 'ኮ': 'ko', 'ኾ': 'Ko', 'ዎ': 'wo', 'ዖ': 'Oo', 'ዞ': 'zo', 'ዦ': 'Zo', 'ዮ': 'yo', 'ዶ': 'do', 'ጆ': 'jo', 'ጎ': 'go', 'ጦ': 'To', 'ጮ': 'Co', 'ጶ': 'Po', 'ጾ': 'xo', 'ፆ': 'x2o', 'ፎ': 'fo', 'ፖ': 'po', '.': '..', '፯': 7, '፸': 70, 'ጞ': 'Go', 'ሷ': 'sua', 'ዷ': 'dua', 'ዾ': 'd2o'}
 #print(my_map)
-#A function to accept a map and geez text then change it to eglish alphabate. 
-#def geez_to_latin(map,text):
-#    my_map = map
-#    text=text
-#    eng_txt=""
-#    if(text==None or text == " "):
-#        return text
-#    else:
-#        for char in text:
-#            if char in my_map or char == '':
-#                #print (f"The value '{my_map[char]}' is associated with the key '{char}'.")
-#                #eng_txt = eng_txt + my_map[char]
-#                eng_txt = "{}{}".format(eng_txt, my_map[char])
-#            else:
-#                eng_txt = eng_txt + char
-#        return eng_txt
+
+@app.route('/register', methods=['GET', 'POST'])
+def register():
+    form = RegistrationForm()
+    if form.validate_on_submit():
+        user = User(username=form.username.data, email=form.email.data)
+        user.set_password(form.password.data)
+        db.session.add(user)
+        db.session.commit()
+        flash('Your account has been created! You are now able to log in', 'success')
+        return redirect(url_for('login'))
+    return render_template('register.html', form=form)
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    form = LoginForm()
+    if form.validate_on_submit():
+        user = User.query.filter_by(email=form.email.data).first()
+        if user and user.check_password(form.password.data):
+            login_user(user)
+            return redirect(url_for('home'))
+        flash('Invalid email or password', 'danger')
+        return redirect(url_for('login'))
+    return render_template('register.html', form=form)
+
+@app.route('/dashboard')
+@login_required
+def dashboard():
+    return f'hello,{current_user.username}! welcome to your dashboard'
+
+@app.route('/logout', methods=['GET', 'POST'])
+@login_required
+def logout():
+    logout_user()
+    return redirect(url_for('login'))
 
 # A route to display a form for the user to enter a paragraph in Geez alphabet
 @app.route("/")

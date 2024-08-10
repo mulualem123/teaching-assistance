@@ -35,3 +35,20 @@ def geez_to_latin(text):
             else:
                 eng_txt = eng_txt + char
         return eng_txt
+    
+#A function to accept a map and geez text then change it to eglish alphabate. # May be Delete
+#def geez_to_latin(map,text):
+#    my_map = map
+#    text=text
+#    eng_txt=""
+#    if(text==None or text == " "):
+#        return text
+#    else:
+#        for char in text:
+#            if char in my_map or char == '':
+#                #print (f"The value '{my_map[char]}' is associated with the key '{char}'.")
+#                #eng_txt = eng_txt + my_map[char]
+#                eng_txt = "{}{}".format(eng_txt, my_map[char])
+#            else:
+#                eng_txt = eng_txt + char
+#        return eng_txt
