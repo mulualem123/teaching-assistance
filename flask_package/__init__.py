@@ -11,11 +11,19 @@ from . import db                #Orginal
 from .extractpp import extract  #Orginal
 from . import googletransfun    #Orginal
 from . import changealphabet    #Orginal
+from werkzeug.utils import secure_filename
 
 
 app = Flask(__name__)
 
 geez_text = ""
+
+#pp_parent_folder = r'C:\\Users\\selon\\Documents\\Bete Christian\\Mezmur'
+#pp_parent_folder = r'C:/Users/MulleTec001/OneDrive/Documents/flask/teaching-assistance/flask_package/pp'
+#pp_parent_folder = r'C:/Users/selon/Documents/Bete Christian/Mezmur'
+#pp_parent_folder = r'/python-docker/flask_package/doc/pp'
+pp_parent_folder = r'flask_package/doc/pp/'
+audio_folder = r'flask_package/static/audio/'
 
 #sqlite3
 #app.config['DATABASE'] = r'/python-docker/flask_package/site.db'
@@ -34,10 +42,12 @@ app.config['MAIL_USE_TLS'] = True
 app.config['MAIL_USE_SSL'] = False
 mail = Mail(app)
 
-#pp_parent_folder = r'C:\\Users\\selon\\Documents\\Bete Christian\\Mezmur'
-#pp_parent_folder = r'C:/Users/MulleTec001/OneDrive/Documents/flask/teaching-assistance/flask_package/pp'
-pp_parent_folder = r'C:/Users/selon/Documents/Bete Christian/Mezmur'
-#pp_parent_folder = r'/python-docker/flask_package/doc/pp'
+# Uppload file Configuration
+app.config['UPLOAD_FOLDER'] = pp_parent_folder
+app.config['ALLOWED_EXTENSIONS'] = {'pdf','pptx','ppt'}
+#Ensure the upload folder exists
+os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+
 
 #events to display on calendar card. Go to index page and call this array once you pass through home function
 events = [
@@ -50,6 +60,10 @@ events = [
         'date': '2024-10-20'
     }
 ]
+
+#A dictionery of key = mezmur id and value = audio name
+audio_dic = { }
+
 
 #A function to load geez alphabate to latin alphabate transition and put it in Map
 def geez_alpha_database():
@@ -108,6 +122,10 @@ def index():
 @app.route("/mezmur")
 def mezmur():
     files = os.listdir(pp_parent_folder)
+    
+    #rows= db.get_data()  
+    #audio_files={row[0]:audio_dic.get(row[0], None) for row in rows}
+    
     if geez_text != "": 
         #return render_template("mezmur.html", latin_text=changealphabet.geez_to_latin(my_map, geez_text), lg_text = googletransfun.check_language_type(geez_text), geez_text_t = geez_text, translated_text = googletransfun.translate_tig_eng(geez_text),files = os.listdir(pp_parent_folder), rows= db.get_data())
         return render_template("mezmur.html", latin_text=changealphabet.geez_to_latin(geez_text), lg_text = googletransfun.check_language_type(geez_text), geez_text_t = geez_text, translated_text = googletransfun.translate_tig_eng(geez_text),files = os.listdir(pp_parent_folder), rows= db.get_data())
@@ -150,6 +168,14 @@ def translate():
         return render_template("translate.html", latin_text=changealphabet.geez_to_latin(geez_text), lg_text = googletransfun.check_language_type(geez_text), geez_text_t = geez_text, translated_text = googletransfun.translate_tig_eng(geez_text),files = os.listdir(pp_parent_folder), rows= db.get_data())
     else:
         return render_template("translate.html",files = os.listdir(pp_parent_folder), rows= db.get_data())
+    
+#Return Audio
+@app.route("/audio/<filename>")
+def audio(filename):
+    #files = os.listdir(r'flask_package\pp')
+    #return render_template("index.html", files=files, events=events)
+    #files = os.listdir(r"C:\\Users\\selon\\Documents\\Bete Christian\\Mezmur")
+    return send_from_directory('static/audio', "audio_2023-07-05_21-32-44.mp3")
     
 #A function that returns text from given/selected PowerPoint file.
 @app.route('/display/<filename>')
@@ -241,32 +267,36 @@ def convert():
         flash("email have been sent successfuly")
         return render_template('index.html')
 #Uppload File
-#Configuration
-app.config['UPLOAD_FOLDER'] = pp_parent_folder
-app.config['ALLOWED_EXTENSIONS'] = {'pdf','pptx','ppt'}
-#Ensure the upload folder exists
-os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 #Check if the file extension is allowed
 def allowed_file(filename):
     return '.' in filename and \
         filename.rsplit('.', 1)[1].lower() in app.config['ALLOWED_EXTENSIONS']
         
-@app.route("/uplaod", methods=['POST'])
+@app.route("/uplaod", methods=['GET', 'POST'])
 def uplaod_file ():
+    upload(rq.files)
+    return render_template("index.html",files = os.listdir(pp_parent_folder), rows= db.get_data())
+
+def upload (files):
     #check if the post request has the file part
-    if 'file' not in rq.files:
-        return render_template('index.html')
-    file = rq.files['file']
+    if 'file' not in files:
+        print(str(files))
+        print("file is not in rq.files")
+        return "No File exist"
+    file = files['file']
     #Check if for empty file and has no name
     if file.filename == '':
-        return render_template ('index.html')
+        print(str(file.filename) + "the file has no name")
+        return "File has no name"
     if file and allowed_file(file.filename):
+        print("File does exit and is not null")
         filename = secure_filename(file.filename)
         file.save(os.path.join(app.config['UPLOAD_FOLDER'],filename))
-        return 'File uploaded and processed successfully'
+        return filename
     else:
-        return 'File type not allowed'
+        return render_template("index.html",files = os.listdir(pp_parent_folder), rows= db.get_data())
 
+    
 @app.route('/delete/<id>')
 def delete (id):
     db.delete_data(id)
@@ -312,9 +342,16 @@ def update (id):
 
 @app.route('/pushupdate', methods=['POST'])    
 def pushupdate():
+    app.config['UPLOAD_FOLDER'] = audio_folder
+    app.config['ALLOWED_EXTENSIONS'] = {'mp3','mpeg','ogg','mp4','m4a'}
     if rq.method == 'POST':
+        mez_audio_filename = upload(rq.files)
+        #print ("mez_audio_filename ")
+        #print (mez_audio_filename)
+        #upload(rq.files)
         id = rq.form.get("id")
-        #print(id)
+        print("Id from form ")
+        print(id)
         title = rq.form.get("title")
         #print(title)
         titleen = rq.form.get("titleen")
@@ -323,11 +360,23 @@ def pushupdate():
         #print(geez_text)
         alpha_text = rq.form.get("alpha_text")
         #print(alpha_text)
+        
         db.set_title(title,id)
         db.set_titleen(titleen,id)
         db.set_azmach(geez_text,id)
-        db.set_azmachen(alpha_text,id)        
-    return render_template("index.html",files = os.listdir(pp_parent_folder), rows= db.get_data())       
+        db.set_azmachen(alpha_text,id)
+        db.set_audio_file("No File",id)   
+         
+        audio_dic[id]=mez_audio_filename
+        #print(audio_dic[id])
+        rows= db.get_data()  
+        
+        #for row in rows:
+        #    for i in range(11):
+        #        print (row[i]) 
+        #audio_files={row[0]:audio_dic.get(row[0], None) for row in rows}
+  
+    return render_template("mezmur.html", files = os.listdir(pp_parent_folder), rows= db.get_data())       
                 
 @app.route('/selectedmez/<id>')
 def selected(id):

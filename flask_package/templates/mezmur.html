@@ -59,6 +59,7 @@
                             <th>Date</th>
                             <th>Update</th>
                             <th>Delete</th>
+                            <th>Play<th>
                             <!-- Add more columns as needed -->
                         </tr>
                     </thead>
@@ -70,9 +71,15 @@
                                 <td>{{ row[3] }}</td>
                                 <td>{{ row[4] }}</td>
                                 <td>{{ row[5] }}</td>
-                                <td>{{ row[6] }}</td>
+                                <td>{{ row[7] }}</td>
                                 <td><li class="list-group-item"><a href="{{ url_for('update',id=row[0])}}">Update</a></li></td>
                                 <td><li class="list-group-item"><a href="{{ url_for('delete',id=row[0]) }}">Delete</a></li></td>
+                                <td>
+                                    {{row[6]}}
+                                    <audio controls>
+                                        <source src="{{ url_for('audio',filename="{{row[6]}}") }}" type="audio/mpeg">
+                                    </audio>
+                                </td>
                                 <!-- Add more cells for other columns -->
                             </tr>
                         {% endfor %}

@@ -140,7 +140,7 @@ class extract:
                         #    text = paragraph.text
                         #    print("This is not in text frame. " + str(text))
                         print ("Thid is not shape.text_frame ")
-             self.db.mv_database(geez_title_text, geez_text_content,en_apha_text_content,self.filename)
+             self.db.mv_database(geez_title_text, geez_text_content,en_apha_text_content,self.filename,"NA","NA","NA","NA")
 ## There might be a bug. more monitering required.
 ### Need each stence to be in a new line              
 # set the title to the first alphabet of the paragraph and when track is zero --Solved

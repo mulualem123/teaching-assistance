@@ -29,10 +29,10 @@ def add_data(data):
     db.commit()
 
 #Add mezmur in geez in database.
-def mv_database(title,geez_text,latin_text,filename):
+def mv_database(title,geez_text,latin_text,filename,audio,cat1,cat2,cat3):
     db_ob = get_db()
-    sql = 'Insert INTO mezmur (title, azmach,azmachen,dir) VALUES (?, ?, ?, ?)'
-    values = (title,geez_text, latin_text, filename)
+    sql = 'Insert INTO mezmur (title, azmach,azmachen,dir,audio_file,cat1,cat2,cat3) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+    values = (title,geez_text, latin_text, filename, audio, cat1, cat2, cat3)
     db_ob.execute(sql, values)
     db_ob.commit()
     #db_ob.close()
@@ -89,6 +89,18 @@ def set_azmachen(azmachen, id):
     db_ob = get_db()
     sql = 'UPDATE mezmur SET azmachen = ? where m_id = ?'
     values = (azmachen, id)
+    db_ob.execute(sql,values)
+    db_ob.commit()
+    return "updated!"
+
+def set_audio_file(audio_file, id):
+    print("set_audio_file function called")
+    print(audio_file)
+    print("This is ID " + str(id))
+    
+    db_ob = get_db()
+    sql = 'UPDATE mezmur SET audio_file = ? where m_id = ?'
+    values = (audio_file, id)
     db_ob.execute(sql,values)
     db_ob.commit()
     return "updated!"
