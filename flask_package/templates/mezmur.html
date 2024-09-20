@@ -4,18 +4,39 @@
     <!--<meta http-equiv="refresh" content="30"> -->
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1.0"> 
-	<!-- Bootstrap CSS -->    
-    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.11.8/dist/umd/popper.min.js" integrity="sha384-I7E8VVD/ismYTF4hNIPjVp/Zjvgyol6VFvRkX/vR+Vc4jQkC+hVqc2pM8ODewa9r" crossorigin="anonymous"></script>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.min.js" integrity="sha384-BBtl+eGJRgqQAUMxJ7pMwbEyER4l1g+O15P+16Ep7Q9Q+zqX6gSbd85u4mG4QzX+" crossorigin="anonymous"></script>
+    <!-- Bootstrap CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-1BmE4kWBq78iYhFldvKuhfTAU6auU8tT94WrHftjDbrCEXSU1oBoqyl2QvZ6jIW3" crossorigin="anonymous">
-    <!--fullcalendar-->
+
+    <!-- FullCalendar CSS -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/fullcalendar@5.5.0/main.min.css">
+
+    <!-- Bootstrap Table CSS -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-table@1.23.2/dist/bootstrap-table.min.css">
+
+    <!-- jQuery -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+
+    <!-- Popper.js -->
+    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.11.8/dist/umd/popper.min.js" integrity="sha384-I7E8VVD/ismYTF4hNIPjVp/Zjvgyol6VFvRkX/vR+Vc4jQkC+hVqc2pM8ODewa9r" crossorigin="anonymous"></script>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.min.js" integrity="sha384-BBtl+eGJRgqQAUMxJ7pMwbEyER4l1g+O15P+16Ep7Q9Q+zqX6gSbd85u4mG4QzX+" crossorigin="anonymous"></script>
+
+    <!-- FullCalendar JS -->
     <script src="https://cdn.jsdelivr.net/npm/fullcalendar@5.5.0/main.min.js"></script>
+
+    <!-- Bootstrap Table JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap-table@1.23.2/dist/bootstrap-table.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap-table@1.23.2/dist/extensions/filter-control/bootstrap-table-filter-control.min.js"></script>
+
+    <!-- Custom JS -->
+    <!-- <script src="static/js/filter.js"></script> -->
+
 </head>     
 <body>
     <header>
         {%include 'navbar.html'%}
-        <br/>
+        <!--{% block activeMezmur %}active{% endblock  %} in order to activet/hilight works with these command line instead of inlude, it has to be extends "base.html" --> 
         <article class="flashes">                       <!-- Flashing -->
             {%with messages = get_flashed_messages()%}
                 {%if messages%}
@@ -45,22 +66,60 @@
                 card.style.display = 'none';
             }
         </script>
+        <!--<script>
+            src="{{url_for('static', filename='js/filter.js')}}"
+        </script>
+        <script>
+            $(document).ready(function() {
+                $('#table').bootstrapTable();
+            });
+        </script> -->
     </header>
     <main>
-            <div class="row p-2 card mb-3 border-light">
-                <table class="table table-bordered">
+        
+          <!--<div class="row p-2 card mb-3 border-light">    -->  
+          <div class="row p-2 card mb-3 border-light">  
+              <div class="d-flex justify-content-between">
+                  <input class="mr-auto" type="text" id="myInput" onkeyup="filterTags()" placeholder="Search for Mezmur Title" title="Type in a title">  
+                  <div>
+                    <ul>
+                      <div class="form-check form-check-inline" >
+                        <input class="form-check-input" type="radio" name="operators" id="flexRadioDefault1" onchange="filterTags()" value="and">
+                        <label class="form-check-label" for="flexRadioDefault1">
+                          And
+                        </label>
+                      </div>
+                      <div class="form-check form-check-inline" >
+                        <input class="form-check-input" type="radio" name="operators" id="flexRadioDefault2" onchange="filterTags()" value="only" checked>
+                        <label class="form-check-label" for="flexRadioDefault2">
+                          Only
+                        </label>
+                      </div>           
+                      {% for tag in tags %}
+                        <!--  <option value="{{ tag.t_id }}">{{ tag.tag }}</option> -->
+                          <input type="checkbox" name="selected_tags" onchange="filterTags()" value="{{ tag.tag}}"> {{ tag.tag }} </input>
+                      {% endfor %}
+                    </ul>
+                  </div>
+                </div>
+              <div class="container col-md-12 p-2">
+                 <table 
+                    id="table" 
+                    class="table table-bordered" 
                     <thead>
                         <tr>
-                            <th>ID No.</th>
-                            <th>Title</th>
-                            <th>መዝሙር</th>
-                            <th>Mezmur</th>
-                            <th>File Name</th>
-                            <th>Date</th>
-                            <th>Update</th>
-                            <th>Delete</th>
-                            <th>Play<th>
-                            <!-- Add more columns as needed -->
+                            <th data-field="id">ID No.</th>
+                            <th data-field="title" data-filter-control="select">Title</th>
+                            <th data-field="mez">መዝሙር</th> 
+                            <th data-field="mezmur">Mezmur</th>
+                            <th data-field="filname">File Name</th>
+                            <th data-field="date">Tags</th>
+                            {%if current_user.is_authenticated%}
+                            <th data-field="date">Date</th>
+                            <th data-field="update">Update</th>
+                            <th data-field="delete">Delete</th>
+                            {%endif%}
+                            <th data-field="title">Play</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -71,9 +130,16 @@
                                 <td>{{ row[3] }}</td>
                                 <td>{{ row[4] }}</td>
                                 <td>{{ row[5] }}</td>
-                                <td>{{ row[7] }}</td>
+                                <td>{% for tag in mez_tags%}
+                                        {%if tag[1] == row[0] %}
+                                            {{tag[2]}}
+                                        {%endif%}
+                                    {%endfor%}</td>
+                                {%if current_user.is_authenticated%}
+                                    <td>{{ row[7] }}</td>
                                 <td><li class="list-group-item"><a href="{{ url_for('update',id=row[0])}}">Update</a></li></td>
                                 <td><li class="list-group-item"><a href="{{ url_for('delete',id=row[0]) }}">Delete</a></li></td>
+                                {%endif%}
                                 <td>
                                     {{row[6]}}
                                     <audio controls>
@@ -84,9 +150,11 @@
                             </tr>
                         {% endfor %}
                     </tbody>
-                </table>                
-            </div>
-        </div>       
+                </table>
+            </div>       
+            </div>            
+           <!-- </div> -->
+    
     </main>
     <footer style= "background-color:#e8f2fc; padding: 2%; margin: auto; margin-top: 20px;" >
         © 2021 Copyright:
@@ -95,5 +163,93 @@
             <p> <h3> Footer</h3>  </p>
         </div>        
     </footer>
+    <script>
+      // Function to get the value of the selected radio button
+      function getSelectedRadioValue() {
+        const radios = document.getElementsByName('operators');
+        let selectedValue;
+        for (const radio of radios) {
+          if (radio.checked) {
+            selectedValue = radio.value;
+            break;
+          }
+        }
+        return selectedValue;
+      }
+      function filterTags() {
+        var input, filter, table, tr, td, i, txtValue;
+        //operators
+        const selectedOperatorValue = getSelectedRadioValue();
+        console.log("selectedOperatorValue ", selectedOperatorValue); // This will log 'and' if the 'And' radio button is selected
+
+        //Selected Tags
+        const checkboxes = document.querySelectorAll('input[name="selected_tags"]:checked');
+        console.log("Check box: ", checkboxes);
+        const selectedTags = Array.from(checkboxes).map(cb => cb.value);
+        input = document.getElementById("myInput");
+      
+        filter = input.value.toUpperCase();
+
+        table = document.getElementById("table");
+        tr = table.getElementsByTagName("tr");
+
+        // Show all rows initially
+        for (i = 0; i < tr.length; i++) {
+          tr[i].style.display = "";
+        }
+
+        // Filter rows based on input filter
+        for (i = 0; i < tr.length; i++) { 
+          td1 = tr[i].getElementsByTagName("td")[1];
+          td2 = tr[i].getElementsByTagName("td")[2];
+          if (td1 || td2) {
+            txtValue1 = td1.textContent || td1.innerText;
+            txtValue2 = td2.textContent || td2.innerText;
+            if (txtValue1.toUpperCase().indexOf(filter) > -1 || txtValue2.toUpperCase().indexOf(filter) > -1) {
+              tr[i].style.display = "";
+            } else {
+              tr[i].style.display = "none";
+            }
+          }       
+        }
+
+        // Filter rows based on selected tags
+        if (selectedTags.length > 0) {
+          console.log("Hello, world!");
+          console.log("selectedTags: ", selectedTags);
+          for (i = 0; i < tr.length; i++) {
+            let tagMatch = true;                        // To track display value
+            td1 = tr[i].getElementsByTagName("td")[5];  //Assigning the column to check the table
+            if (td1) {
+              if(selectedOperatorValue && selectedOperatorValue.includes("and")){
+                tagMatch = false;
+                txtValue1 = td1.textContent || td1.innerText; // getting the value of row
+                for (let j = 0; j < selectedTags.length; j++) { //Going through selectedTags
+                  if ((txtValue1.includes(selectedTags[j]))) { //If any of the tags selected are not in the cell that row display turn to none 
+                    console.log("slectedtag that doesn't mach the cell " + selectedTags[j]);
+                    tagMatch = true;
+                    break;
+                  }
+                }
+              }else{
+                txtValue1 = td1.textContent || td1.innerText; // getting the value of row
+                for (let j = 0; j < selectedTags.length; j++) { //Going through selectedTags
+                  if (!(txtValue1.includes(selectedTags[j]))) { //If any of the tags selected are not in the cell that row display turn to none 
+                    console.log("slectedtag that doesn't mach the cell " + selectedTags[j]);
+                    tagMatch = false;
+                    break;
+                  }
+                }
+              }
+              if (tagMatch) {
+                tr[i].style.display = "";
+              } else {
+                tr[i].style.display = "none";
+              }
+            }
+          }
+        }
+      }
+  </script>
 </body>
 </html>

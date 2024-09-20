@@ -71,6 +71,18 @@
               <input type="file" name="file" class="form-control" aria-label="default input example" value="{{mezdata[6]}}">
             </div> 
             <div>
+            </div>
+            <div>
+              <label for="tags" class="form-label">Tags</label>
+              <select multiple class="form-control" name="tags[]" id="tags">
+                {% for tag in tags %}
+                <!--  <option value="{{ tag.t_id }}">{{ tag.tag }}</option> -->
+                  <input type="checkbox" name="selected_tags" value="{{ tag.t_id }}"> {{ tag.tag }}<br>
+                {% endfor %}
+              </select>
+            </div>
+            </div>
+            <div>
               <input type="submit" value="Update" name="t_update" class="form-control" aria-label="default input example">
             </div> 
           </form>

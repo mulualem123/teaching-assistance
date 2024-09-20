@@ -3,6 +3,7 @@ DROP TABLE IF EXISTS user;
 DROP TABLE IF EXISTS post;
 DROP TABLE IF EXISTS mezmur;
 DROP TABLE IF EXISTS mezmur_org1;
+DROP Table IF EXISTS tags;
 
 CREATE TABLE user (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -41,4 +42,18 @@ CREATE TABLE mezmur (
   cat1 TEXT NOT NULL,
   cat2 TEXT NOT NULL,
   cat3 TEXT NOT NULL
+);
+
+CREATE TABLE tagList (
+  t_id INTEGER PRIMARY KEY,
+  tag TEXT NOT NULL UNIQUE
+);
+
+CREATE TABLE mezTags (
+  tag_id INTEGER,
+  m_id INTEGER,
+  tag TEXT NOT NULL,
+  FOREIGN KEY (m_id) REFERENCES mezmur(m_id)
+  FOREIGN KEY (tag_id) REFERENCES tagList(t_id)
+  PRIMARY KEY (m_id, tag_id)
 );

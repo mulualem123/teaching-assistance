@@ -34,14 +34,30 @@
             </a>
             <ul class="dropdown-menu">
               <li><a class="dropdown-item" href="#">Saturday</a></li>
-              <li><a class="dropdown-item" href="#">Sunday</a></li>
+              <li><a class="dropdown-item" href="{{url_for('sundayclass')}}">Sunday</a></li>
             </ul>
           </li>
         </ul>
-        <form class="d-flex justify-content-end"  role="search">
-          <input class="form-control me-2" type="search" placeholder="Search" aria-label="Search">
+        <form action="/search" class="d-flex justify-content-end"  role="search">
+          <input class="form-control me-2" type="search" name="search_term" placeholder="Search" aria-label="Search">
           <button class="btn btn-outline-success" type="submit">Search</button>
         </form>
+        <ul  class="navbar-nav ms-auto">
+
+          {% if not current_user.is_authenticated%}
+          <li class="nav-item">
+            <a class="nav-link {% block activeRegister %}{% endblock  %}" href={{url_for('register')}}>Register</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link {% block activeLogin %}{% endblock  %}" href={{url_for('login')}}>Login</a>
+          </li>
+          {% endif %}
+          {% if current_user.is_authenticated%}
+          <li class="nav-item">
+            <a class="nav-link {% block activeLogout %}{% endblock  %}" href={{url_for('logout')}}>Logout</a>
+          </li>
+          {% endif %}
+        </ul>
       </div>
 
     </div>
