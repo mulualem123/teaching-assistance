@@ -82,7 +82,7 @@
               <div class="d-flex justify-content-between">
                   <input class="mr-auto" type="text" id="myInput" onkeyup="filterTags()" placeholder="Search for Mezmur Title" title="Type in a title">  
                   <div>
-                    <ul>
+                    <ul class="mb-0">
                       <div class="form-check form-check-inline" >
                         <input class="form-check-input" type="radio" name="operators" id="flexRadioDefault1" onchange="filterTags()" value="and">
                         <label class="form-check-label" for="flexRadioDefault1">
@@ -94,18 +94,40 @@
                         <label class="form-check-label" for="flexRadioDefault2">
                           Only
                         </label>
-                      </div>           
-                      {% for tag in tags %}
-                        <!--  <option value="{{ tag.t_id }}">{{ tag.tag }}</option> -->
-                          <input type="checkbox" name="selected_tags" onchange="filterTags()" value="{{ tag.tag}}"> {{ tag.tag }} </input>
-                      {% endfor %}
+                      </div>
+
+                      <div class="btn-group">
+                        <button type="button" class="btn btn-secondary dropdown-toggle " data-bs-toggle="dropdown" data-bs-display="static" aria-expanded="false">
+                          Filter
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-end dropdown-menu-lg-start">
+                          {% for tag in tags %}
+                          <!--  <option value="{{ tag.t_id }}">{{ tag.tag }}</option> -->
+                          <li><label class="list-group-item"><input  type="checkbox" name="selected_tags" onchange="filterTags()" value="{{ tag.tag}}"> {{ tag.tag }}</input></lable></li>
+                        {% endfor %}
+                        </ul>
+                      </div>
+
+                      <div class="dropdown btn-group">
+                        <button type="button" class="btn btn-primary dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false" data-bs-auto-close="outside">
+                          Add Tag
+                        </button>
+                        <form class="dropdown-menu p-4" method="POST" action="/add_tag">
+                          <div class="mb-3">
+                            <input type="text" name="name" value="" placeholder="Tag Name" required>
+                          </div>
+                          <button type="submit" class="btn btn-primary">Submit</button>
+                        </form>
+                      </div>
+
+
                     </ul>
                   </div>
                 </div>
               <div class="container col-md-12 p-2">
                  <table 
                     id="table" 
-                    class="table table-bordered" 
+                    class="table table-bordered w-auto" 
                     <thead>
                         <tr>
                             <th data-field="id">ID No.</th>
@@ -143,7 +165,7 @@
                                 <td>
                                     {{row[6]}}
                                     <audio controls>
-                                        <source src="{{ url_for('audio',filename="{{row[6]}}") }}" type="audio/mpeg">
+                                        <source src="{{ url_for('audio',id = row[0] ) }}" type="audio/mpeg">
                                     </audio>
                                 </td>
                                 <!-- Add more cells for other columns -->
@@ -202,10 +224,12 @@
         for (i = 0; i < tr.length; i++) { 
           td1 = tr[i].getElementsByTagName("td")[1];
           td2 = tr[i].getElementsByTagName("td")[2];
-          if (td1 || td2) {
+          td3 = tr[i].getElementsByTagName("td")[3];
+          if (td1 || td2 || td3) {
             txtValue1 = td1.textContent || td1.innerText;
             txtValue2 = td2.textContent || td2.innerText;
-            if (txtValue1.toUpperCase().indexOf(filter) > -1 || txtValue2.toUpperCase().indexOf(filter) > -1) {
+            txtValue3 = td3.textContent || td3.innerText;
+            if (txtValue1.toUpperCase().indexOf(filter) > -1 || txtValue2.toUpperCase().indexOf(filter) > -1|| txtValue3.toUpperCase().indexOf(filter) > -1) {
               tr[i].style.display = "";
             } else {
               tr[i].style.display = "none";

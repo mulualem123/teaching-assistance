@@ -104,7 +104,13 @@ def set_audio_file(audio_file, id):
     db_ob.execute(sql,values)
     db_ob.commit()
     return "updated!"
-
+def get_audio(id):
+    db_ob = get_db()
+    cursor = db_ob.cursor()
+    sql = 'SELECT audio_file FROM mezmur WHERE m_id = ?'
+    cursor.execute(sql,(id,))
+    data = cursor.fetchone()
+    return data
 def get_data():
     db_ob = get_db()
     cursor = db_ob.cursor()

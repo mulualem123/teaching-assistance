@@ -44,6 +44,9 @@ login_manager= LoginManager()  #Account creation
 login_manager.init_app(app)  #Account creation
 login_manager.login_view = 'login'  #Account creation
 
+#Telegram
+TOKEN = '7611669258:AAEchAugok05KQ_OqFzOc-59bY8FkSZQiwE'
+TELEGRAM_API_URL = f'https://api.telegram.org/bot{TOKEN}/sendMessage'
 
 with app.app_context():
     account_db.create_all()
@@ -168,12 +171,12 @@ def mezmur():
     files = os.listdir(pp_parent_folder)
     
     mez_tags = db.get_allMezTags()
-    print("The following will print all the mezmur tags")
-    for m_tags in mez_tags:
-        print("m_tags " + str(m_tags))
-        print("m_tags[0] " + str(m_tags[0]))
-        print("m_tags[1] " + str(m_tags[1]))
-        print("m_tags[2] " + str(m_tags[2]))
+    #print("The following will print all the mezmur tags")
+    #for m_tags in mez_tags:
+    #    print("m_tags " + str(m_tags))
+    #    print("m_tags[0] " + str(m_tags[0]))
+    #    print("m_tags[1] " + str(m_tags[1]))
+    #    print("m_tags[2] " + str(m_tags[2]))
         
     #rows= db.get_data()  
     #audio_files={row[0]:audio_dic.get(row[0], None) for row in rows}
@@ -240,12 +243,25 @@ def translate():
         return render_template("translate.html",files = os.listdir(pp_parent_folder), rows= db.get_data())
     
 #Return Audio
-@app.route("/audio/<filename>")
-def audio(filename):
+@app.route("/audio/<id>")
+def audio(id):
     #files = os.listdir(r'flask_package\pp')
     #return render_template("index.html", files=files, events=events)
     #files = os.listdir(r"C:\\Users\\selon\\Documents\\Bete Christian\\Mezmur")
-    return send_from_directory('static/audio', "audio_2023-07-05_21-32-44.mp3")
+    #get the audio file from database from passed id
+    print("This is passed id from mezmur page " + str(id))
+    #First print list of audios 
+    audio_list = db.get_audio(id)
+    if audio_list:
+        selected_audio = audio_list[0]
+        print("001 audio/Selected_audio_exist " + str(selected_audio))
+    else:
+    # Handle the case where the list is empty
+        selected_audio = "NA"
+        print("002 Selected_audio " + str(selected_audio))
+    
+    #return send_from_directory('static/audio', "audio_2023-07-05_21-32-44.ogg")
+    return send_from_directory('static/audio', str(selected_audio))
     
 #A function that returns text from given/selected PowerPoint file.
 @app.route('/display/<filename>')
@@ -345,16 +361,23 @@ def allowed_file(filename):
         
 @app.route("/uplaod", methods=['GET', 'POST'])
 def uplaod_file ():
+    files = rq.files
+    if rq.method == 'POST':
+        # check if the post request has the file part
+        if 'file' not in files:
+            flash('No file part')
+            return "No File exist"
     upload(rq.files)
     return render_template("index.html",files = os.listdir(pp_parent_folder), rows= db.get_data())
 
 def upload (files):
     #check if the post request has the file part
-    if 'file' not in files:
-        print(str(files))
-        print("file is not in rq.files")
-        return "No File exist"
+    #if 'file' not in files:
+    #    print(str(files))
+    #    print("file is not in rq.files")
+    #    return "No File exist"
     file = files['file']
+    print(file)
     #Check if for empty file and has no name
     if file.filename == '':
         print(str(file.filename) + "the file has no name")
@@ -419,9 +442,7 @@ def pushupdate():
     app.config['UPLOAD_FOLDER'] = audio_folder
     app.config['ALLOWED_EXTENSIONS'] = {'mp3','mpeg','ogg','mp4','m4a'}
     if rq.method == 'POST':
-        mez_audio_filename = upload(rq.files)
-        #print ("mez_audio_filename ")
-        #print (mez_audio_filename)
+
         #upload(rq.files)
         id = rq.form.get("id")
         print("Id from form ")
@@ -439,7 +460,12 @@ def pushupdate():
         db.set_titleen(titleen,id)
         db.set_azmach(geez_text,id)
         db.set_azmachen(alpha_text,id)
-        db.set_audio_file("No File",id)   
+        
+        #Getting the file name form upload. upload function upload file and return the file's name
+        mez_audio_filename = upload(rq.files)
+        print ("mez_audio_filename " + str(mez_audio_filename))
+        if "File has no name" not in mez_audio_filename :
+            db.set_audio_file(mez_audio_filename,id)   
          
         audio_dic[id]=mez_audio_filename
         #print(audio_dic[id])
@@ -447,20 +473,31 @@ def pushupdate():
         
         
         selected_tags = rq.form.getlist('selected_tags')  # get the selected tags from the form
-        num = 1
-        print ("This is going to print tags")
-        for  tag in selected_tags:
-            print ("Tag " + str(num) + str(tag))
-            num = num + 1
+        if selected_tags:
+            num = 1
+            print ("This is going to print tags")
+            for  tag in selected_tags:
+                print ("Tag " + str(num) + str(tag))
+                num = num + 1
             
-        db.update_mez_tags(selected_tags, id)
+            db.update_mez_tags(selected_tags, id)
 
         #for row in rows:
         #    for i in range(11):
         #        print (row[i]) 
         #audio_files={row[0]:audio_dic.get(row[0], None) for row in rows}
   
-    return render_template("mezmur.html", files = os.listdir(pp_parent_folder), rows= db.get_data())       
+    return render_template("mezmur.html", 
+                        latin_text=changealphabet.geez_to_latin(geez_text), 
+                        lg_text = googletransfun.check_language_type(geez_text), 
+                        geez_text_t = geez_text, 
+                        translated_text = googletransfun.translate_tig_eng(geez_text),
+                        files = os.listdir(pp_parent_folder), 
+                        rows= db.get_data(),
+                        mez_tags = db.get_allMezTags(),
+                        tags=db.get_taglist()
+                       )
+    
                 
 @app.route('/selectedmez/<id>')
 def selected(id):
@@ -504,6 +541,22 @@ def add_tag_to_mez(mez_id):
     tag_name = request.form.get('name')
     db.add_tags_to_mez(mez_id,tag_name)
     return redirect(url_for('mezmur'))
+
+#getting built #Telegram
+@app.route('/send_message', methods=['POST'])
+def send_message():
+    data = request.json
+    chat_id = data.get('chat_id')
+    message = data.get('message')
+    
+    payload = {
+        'chat_id': chat_id,
+        'text': message
+    }
+    
+    response = requests.post(TELEGRAM_API_URL, json=payload)
+    return response.json()
+
     
 app.config["SECRET_KEY"]= b'\xa4\x99hM\x12s\xc3\x8d'
 
