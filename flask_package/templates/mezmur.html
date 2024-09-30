@@ -76,8 +76,8 @@
         </script> -->
     </header>
     <main>
-        
           <!--<div class="row p-2 card mb-3 border-light">    -->  
+          <!--Tags-->
           <div class="row p-2 card mb-3 border-light">  
               <div class="d-flex justify-content-between">
                   <input class="mr-auto" type="text" id="myInput" onkeyup="filterTags()" placeholder="Search for Mezmur Title" title="Type in a title">  
@@ -119,8 +119,6 @@
                           <button type="submit" class="btn btn-primary">Submit</button>
                         </form>
                       </div>
-
-
                     </ul>
                   </div>
                 </div>
@@ -147,7 +145,8 @@
                     <tbody>
                         {% for row in rows %}
                             <tr>
-                                <td><li class="list-group-item"><a href={{ url_for('selected',id=row[0]) }}>{{ row[0] }}</a></td>
+                                <!--<td><li class="list-group-item"><a href={{ url_for('selected',id=row[0]) }}>{{ row[0] }}</a></td>-->
+                                <td><button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modal-{{ loop.index }}">  Preview {{ row[0] }}</button></td>
                                 <td>{{ row[1] }}</td>
                                 <td>{{ row[3] }}</td>
                                 <td>{{ row[4] }}</td>
@@ -158,7 +157,7 @@
                                         {%endif%}
                                     {%endfor%}</td>
                                 {%if current_user.is_authenticated%}
-                                    <td>{{ row[7] }}</td>
+                                <td>{{ row[7] }}</td>
                                 <td><li class="list-group-item"><a href="{{ url_for('update',id=row[0])}}">Update</a></li></td>
                                 <td><li class="list-group-item"><a href="{{ url_for('delete',id=row[0]) }}">Delete</a></li></td>
                                 {%endif%}
@@ -170,6 +169,42 @@
                                 </td>
                                 <!-- Add more cells for other columns -->
                             </tr>
+                                      <!-- Preview Modal -->
+                            <div class="modal fade" id="modal-{{ loop.index }}" tabindex="-1" aria-labelledby="exampleModalLabel" aria-hidden="true" >
+                              <div class="modal-dialog modal-xl modal-dialog modal-dialog-centered">
+                                <div class="modal-content">
+                                  <div class="modal-header">
+                                    <h1 class="modal-title fs-5" id="exampleModalLabel">{{ row[1] }} </h1>
+                                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                  </div>
+                                  <div class="modal-body">
+                                    <div class="container-fluid">
+                                        <div class="row">
+                                          <div class="col-md-3 ms-auto"><p>  {{ row[3] }} </p></div>
+                                          <div class="col-md-3 ms-auto"><p> {{ row[4] }} </p></div>
+                                          <div class="col-md-3 ms-auto"><p> {{ row[5] }} </p></div>
+                                        </div>
+                                    </div>
+                                  </div>
+                                  <div class="modal-footer">
+                                    <audio controls id="audio-{{ row[0] }}">
+                                      <source src="{{ url_for('audio',id = row[0] ) }}" type="audio/mpeg">
+                                    </audio>
+                                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                                    <!--<button type="button" class="btn btn-primary">Save changes</button>-->
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                            <script>
+                              document.addEventListener("DOMContentLoaded", function() {
+                                var modal = document.getElementById("modal-{{ loop.index }}");
+                                modal.addEventListener("hidden.bs.modal", function() {
+                                  var audio = document.getElementById("audio-{{ row[0] }}");
+                                  audio.pause();
+                                });
+                              });
+                            </script>
                         {% endfor %}
                     </tbody>
                 </table>
