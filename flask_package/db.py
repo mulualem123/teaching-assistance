@@ -29,10 +29,10 @@ def add_data(data):
     db.commit()
 
 #Add mezmur in geez in database.
-def mv_database(title,geez_text,latin_text,filename,audio,cat1,cat2,cat3):
+def mv_database(title,geez_text,latin_text,engTrans,filename,audio,cat1,cat2,cat3):
     db_ob = get_db()
-    sql = 'Insert INTO mezmur (title, azmach,azmachen,dir,audio_file,cat1,cat2,cat3) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
-    values = (title,geez_text, latin_text, filename, audio, cat1, cat2, cat3)
+    sql = 'Insert INTO mezmur (title, azmach,azmachen,engTrans,dir,audio_file,cat1,cat2,cat3) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
+    values = (title,geez_text, latin_text, engTrans, filename, audio, cat1, cat2, cat3)
     db_ob.execute(sql, values)
     db_ob.commit()
     #db_ob.close()
@@ -86,6 +86,7 @@ def set_azmach(azmach, id):
 
 #Sets the azmach in english alphabet to the summited value azmachen.
 def set_azmachen(azmachen, id):
+    print("set_azmachen method from db.py module has been called with inpute: " + str(id) + " and " + str(azmachen))
     db_ob = get_db()
     sql = 'UPDATE mezmur SET azmachen = ? where m_id = ?'
     values = (azmachen, id)

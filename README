@@ -111,3 +111,49 @@ flask --app flask_package --help
 Increase and decrease fonts.
 change the info and close bottons on the cards.
 
+
+#############################################################################################################
+Use Flask-Migrate (Recommended for non-destructive changes)
+Install Flask-Migrate:
+
+pip install Flask-Migrate
+
+Setup Flask-Migrate: In your app.py, initialize Flask-Migrate:
+
+from flask_migrate import Migrate
+from models.user import User, db
+from models.role import Role
+from models import roles_users
+
+app = Flask(__name__)
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///roles.db'
+app.config['SECRET_KEY'] = 'super-secret-key'
+app.config['SECURITY_PASSWORD_SALT'] = 'super-secret-salt'
+
+db.init_app(app)
+migrate = Migrate(app, db)
+
+user_datastore = SQLAlchemyUserDatastore(db, User, Role)
+security = Security(app, user_datastore)
+
+@app.route('/')
+def home():
+    return 'Welcome to the Flask app with roles!'
+
+if __name__ == '__main__':
+    with app.app_context():
+        db.create_all()
+
+    app.run(debug=True)
+    
+Initialize Migrations:
+flask db init
+
+Generate Migration:
+flask db migrate -m "Add active field to User model"
+
+Apply Migration:
+flask db upgrade
+
+
+

@@ -107,7 +107,7 @@
                         {% endfor %}
                         </ul>
                       </div>
-
+                      {%if current_user.is_authenticated%}
                       <div class="dropdown btn-group">
                         <button type="button" class="btn btn-primary dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false" data-bs-auto-close="outside">
                           Add Tag
@@ -119,6 +119,7 @@
                           <button type="submit" class="btn btn-primary">Submit</button>
                         </form>
                       </div>
+                      {%endif%}
                     </ul>
                   </div>
                 </div>
@@ -132,6 +133,7 @@
                             <th data-field="title" data-filter-control="select">Title</th>
                             <th data-field="mez">መዝሙር</th> 
                             <th data-field="mezmur">Mezmur</th>
+                            <th data-field="hyme">Hyme</th>
                             <th data-field="filname">File Name</th>
                             <th data-field="date">Tags</th>
                             {%if current_user.is_authenticated%}
@@ -146,23 +148,24 @@
                         {% for row in rows %}
                             <tr>
                                 <!--<td><li class="list-group-item"><a href={{ url_for('selected',id=row[0]) }}>{{ row[0] }}</a></td>-->
-                                <td><button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modal-{{ loop.index }}">  Preview {{ row[0] }}</button></td>
+                                <td><button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modal-{{ loop.index }}">  Preview {{ loop.index }} </button></td>
                                 <td>{{ row[1] }}</td>
                                 <td>{{ row[3] }}</td>
                                 <td>{{ row[4] }}</td>
                                 <td>{{ row[5] }}</td>
+                                <td>{{ row[6] }}</td>
                                 <td>{% for tag in mez_tags%}
                                         {%if tag[1] == row[0] %}
                                             {{tag[2]}}
                                         {%endif%}
                                     {%endfor%}</td>
                                 {%if current_user.is_authenticated%}
-                                <td>{{ row[7] }}</td>
+                                <td>{{ row[8] }}</td>
                                 <td><li class="list-group-item"><a href="{{ url_for('update',id=row[0])}}">Update</a></li></td>
                                 <td><li class="list-group-item"><a href="{{ url_for('delete',id=row[0]) }}">Delete</a></li></td>
                                 {%endif%}
                                 <td>
-                                    {{row[6]}}
+                                    {{row[7]}}
                                     <audio controls>
                                         <source src="{{ url_for('audio',id = row[0] ) }}" type="audio/mpeg">
                                     </audio>
@@ -278,7 +281,7 @@
           console.log("selectedTags: ", selectedTags);
           for (i = 0; i < tr.length; i++) {
             let tagMatch = true;                        // To track display value
-            td1 = tr[i].getElementsByTagName("td")[5];  //Assigning the column to check the table
+            td1 = tr[i].getElementsByTagName("td")[6];  //Assigning the column to check the table
             if (td1) {
               if(selectedOperatorValue && selectedOperatorValue.includes("and")){
                 tagMatch = false;

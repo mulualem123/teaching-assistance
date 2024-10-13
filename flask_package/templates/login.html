@@ -37,7 +37,7 @@
     </header>
     <main>
         <h1>Login</h1>
-        <form method="POST">
+        <form method="POST" action="{{ url_for('login') }}">
             {{form.hidden_tag()}}
             {{form.email.label}}{{form.email}}
             {{form.password.label}}{{form.password}}

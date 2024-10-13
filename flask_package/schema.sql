@@ -36,6 +36,7 @@ CREATE TABLE mezmur (
   titleen TEXT,
   azmach TEXT NOT NULL,
   azmachen TEXT,
+  engTrans TEXT,
   dir TEXT NOT NULL,
   audio_file TEXT,
   created TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, 

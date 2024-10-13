@@ -14,11 +14,9 @@
             <a class="nav-link {% block activeMezmur %}{% endblock  %}" aria-current="page" href="{{url_for('mezmur')}}">Mezmur</a>
           </li>
           <li class="nav-item">
-            <a class="nav-link {% block activeBook %}{% endblock  %} " href="#">Books</a>
-          </li>
-          <li class="nav-item">
             <a class="nav-link {% block activeTranslate %}{% endblock  %}" href="{{url_for('translate')}}">Translate</a>
           </li>
+          {% if current_user.is_authenticated%}
           <li class="nav-item">
             <a class="nav-link {% block activeCalender %}{% endblock  %}" aria-current="page" href="{{url_for('calendar')}}">Calendar</a>
           </li>
@@ -27,6 +25,9 @@
           </li>
           <li class="nav-item">
             <a class="nav-link {% block activeFiles %}{% endblock  %}" href={{url_for('files')}}>Files</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link {% block activeBook %}{% endblock  %} " href="#">Books</a>
           </li>
           <li class="nav-item dropdown">
             <a class="nav-link dropdown-toggle {% block activeClasses %}{% endblock  %}" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
@@ -37,6 +38,7 @@
               <li><a class="dropdown-item" href="{{url_for('sundayclass')}}">Sunday</a></li>
             </ul>
           </li>
+          {% endif %}
         </ul>
         <form action="/search" class="d-flex justify-content-end"  role="search">
           <input class="form-control me-2" type="search" name="search_term" placeholder="Search" aria-label="Search">
