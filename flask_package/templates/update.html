@@ -73,13 +73,16 @@
             <div>
             </div>
             <div>
-              <label for="tags" class="form-label">Tags</label>
-              <select multiple class="form-control" name="tags[]" id="tags">
+              <label class="form-label">Tags</label>
                 {% for tag in tags %}
-                <!--  <option value="{{ tag.t_id }}">{{ tag.tag }}</option> -->
-                  <input type="checkbox" name="selected_tags" value="{{ tag.t_id }}"> {{ tag.tag }}<br>
+                  <div class="form-check">
+                    <input type="checkbox" class="form-check-input" name="selected_tags" value="{{ tag.t_id }}" id="tag_{{loop.index}}"
+                      {%for mez_tag in selected_mez_tags%}
+                        {%if tag.tag in mez_tag%} checked{%endif%}
+                      {%endfor%}>
+                    <label class="form-check-label" for="tag_{{loop.index}}">{{ tag.tag }}</label><br>
+                  </div>
                 {% endfor %}
-              </select>
             </div>
             </div>
             <div>

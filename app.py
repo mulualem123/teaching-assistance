@@ -6,6 +6,7 @@ if __name__ == "__main__":
     #with app.app_context():
     #    db.create_all()  # Create the tables in the correct order
     #print('Listening on port', app.config['SERVER_PORT'])
+    create_default_admin()
     app.run(host='0.0.0.0', port=app.config['SERVER_PORT'])
     #app.run(debug=True)
     #test_app.run(debug=True)

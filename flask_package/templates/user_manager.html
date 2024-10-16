@@ -64,7 +64,6 @@
                     <th data-field="active">Active</th>
                     {%if current_user.is_authenticated%}
                     <th data-field="Edit">Edit</th>
-                    <th data-field="delete">Delete</th>
                     {%endif%}
                 </tr>
             </thead>
@@ -127,7 +126,6 @@
                                 </form>
                             </div>
                         </td>
-                        <td><li class="list-group-item"><a href="{{ url_for('delete',id=user[0]) }}">Delete</a></li></td>
                         {%endif%}
                         <!-- Add more cells for other columns -->
                     </tr>

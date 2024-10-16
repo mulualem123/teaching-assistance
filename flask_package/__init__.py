@@ -15,7 +15,7 @@ from . import googletransfun    #Orginal
 from . import changealphabet    #Orginal
 from .forms import RegistrationForm, LoginForm    #Orginal
 from .models import db as account_db, User, Role, roles_users    #Orginal
-from flask_security import Security, SQLAlchemyUserDatastore, UserMixin, RoleMixin
+from flask_security import Security, SQLAlchemyUserDatastore, UserMixin, RoleMixin, roles_required
 from flask_migrate import Migrate  # Import Migrate here
 from werkzeug.utils import secure_filename
 import click
@@ -101,6 +101,33 @@ events = [
     }
 ]
 
+def create_default_admin():
+    with app.app_context():
+        db.create_all()
+        if not User.query.filter_by(email=os.getenv('ADMIN_EMAIL')).first():
+            admin_role = user_datastore.find_or_create_role(name='admin', description='Administrator')
+            user_datastore.create_user(
+                email=os.getenv('ADMIN_EMAIL'),
+                password=generate_password_hash(os.getenv('ADMIN_PASSWORD')),
+                roles=[admin_role]
+            )
+            db.session.commit()
+            #use the following export variables to set up Admin Email and Admin Password
+                #export ADMIN_EMAIL='admin@example.com'
+                #export ADMIN_PASSWORD='your_secure_password'
+                
+#def create_default_admin():
+#    with app.app_context():
+#        db.create_all()
+#        if not User.query.filter_by(email='admin@example.com').first():
+#            admin_role = user_datastore.find_or_create_role(name='admin', description='Administrator')
+#            user_datastore.create_user(
+#                email='admin@example.com',
+#                password=generate_password_hash('admin_password'),
+#                roles=[admin_role]
+#            )
+#            db.session.commit()
+            
 @app.route('/register', methods=['GET', 'POST'])
 def register():
     form = RegistrationForm()
@@ -142,6 +169,7 @@ def register():
         
 #Edit users
 @app.route('/edit_user', methods=['GET', 'POST'])
+@roles_required('admin')
 def edit_user():
     if rq.method == 'POST':
         user_id = rq.form.get('user_id')
@@ -233,6 +261,7 @@ def logout():
     return redirect(url_for('login'))
 
 @app.route('/admin')
+@roles_required('admin')
 def admin():
     return render_template("user_manager.html",
             users= User.query.all(),
@@ -521,9 +550,13 @@ def update (id):
     print("Azmachen" + str(mezdata[4]))
     
     latin_text = mezdata[4] 
+    
+    selected_mez_tags = db.get_selectedMezTags(id)
+    
+    for tag in selected_mez_tags:
+        print ("This is selected mezmur's Tag " + str(tag))
        
     if (mezdata[2]==None or mezdata[2]==" "):
-      
         #db.set_titleen(changealphabet.geez_to_latin(my_map, mezdata[1]), id)
         db.set_titleen(changealphabet.geez_to_latin(mezdata[1]), id)
         #print ("Titleen ")
@@ -546,7 +579,8 @@ def update (id):
                            lg_text = googletransfun.check_language_type(mezdata[2]),
                            translated_text = googletransfun.translate_tig_eng(mezdata[2]),
                            latin_text = latin_text,
-                           tags=db.get_taglist())
+                           tags=db.get_taglist(),
+                           selected_mez_tags=selected_mez_tags)
 
 @app.route('/pushupdate', methods=['POST'])    
 def pushupdate():

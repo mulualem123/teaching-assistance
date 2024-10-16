@@ -53,12 +53,15 @@
                     </li>
                     {%endif%}
                     {% if current_user.is_authenticated%}
-                    <li class="nav-item">
-                        <a class="nav-link" href={{url_for('admin')}}>Adminstrator</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href={{url_for('logout')}}>Log Out</a>
-                    </li>
+                        {% if 'admin' in current_user.roles %}
+                            <li class="nav-item">
+                                <a class="nav-link" href={{url_for('admin')}}>Adminstrator</a>
+                            </li>
+                        {%endif%}    
+                            <li class="nav-item">
+                                <a class="nav-link" href={{url_for('logout')}}>Log Out</a>
+                            </li>
+                     
                     {%endif%}
                 </ul>
             </div>

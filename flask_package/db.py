@@ -197,9 +197,9 @@ def add_tags_to_mez(m_id, tag_name):
 def get_selectedMezTags(id):
     db_ob = get_db()
     cursor = db_ob.cursor()
-    sql = 'SELECT * FROM mezTags where m_id = ?'
+    sql = 'SELECT tag FROM mezTags where m_id = ?'
     cursor.execute(sql,(id,))
-    data = cursor.fetchall()[0]
+    data = cursor.fetchall()
     return data
 
 def get_allMezTags():
