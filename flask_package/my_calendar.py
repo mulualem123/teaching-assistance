@@ -1,10 +1,20 @@
+
 from ethiopian_date import EthiopianDateConverter 
 
 
+import datetime
 
 
+# Instantiate the converter
 converter = EthiopianDateConverter()
-today = converter.to_ethiopian_date(datetime.date.today())
+
+today = datetime.date.today()
+year = today.year
+month = today.month
+day = today.day
+
+ethiopian_date = converter.to_ethiopian(year, month, day)
+
 
 # Testing the conversion of Gregorian Date to Ethiopian Date    
 def test_gregorian_to_ethiopian():

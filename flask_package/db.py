@@ -94,6 +94,16 @@ def set_azmachen(azmachen, id):
     db_ob.commit()
     return "updated!"
 
+# Sets the hyme (English meaning)
+def set_engTrans(engTrans, id):
+    print("db-set_engTrans: method from db.py module has been called with inpute: " + str(id) + " and " + str(engTrans))
+    db_ob = get_db()
+    sql = 'UPDATE mezmur SET engTrans = ? where m_id = ?'
+    values = (engTrans, id)
+    db_ob.execute(sql,values)
+    db_ob.commit()
+    return "updated!"
+
 def set_audio_file(audio_file, id):
     print("set_audio_file function called")
     print(audio_file)

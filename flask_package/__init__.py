@@ -549,8 +549,9 @@ def update (id):
     #print("Azmach " + str(mezdata[3]))
     print("Azmachen" + str(mezdata[4]))
     
+    #variable to be only passed or (updated and passed)
     latin_text = mezdata[4] 
-    
+    engTrans = mezdata[5]
     selected_mez_tags = db.get_selectedMezTags(id)
     
     for tag in selected_mez_tags:
@@ -568,16 +569,19 @@ def update (id):
         #db.set_azmachen(changealphabet.geez_to_latin(my_map, mezdata[3]), id)
         latin_text = changealphabet.geez_to_latin(mezdata[3])
         db.set_azmachen(latin_text, id)
-        #print ("Azmachen") 
-        #print (mezdata[4])
-        #latin_text = changealphabet.geez_to_latin(my_map, mezdata[3])
-        #latin_text = changealphabet.geez_to_latin(mezdata[3])
         print("latin_text to be passed to update page is " + str(latin_text))
 
+    if (mezdata[5]==None or mezdata[5]=="" or mezdata[5]=="NA"):
+        print ("English translate is empty or null")
+        engTrans = googletransfun.translate_tig_eng(mezdata[3])
+        db.set_engTrans(engTrans,id)
+        print ("English translate to be passed to update page is " + str(engTrans))
+        
     return render_template("update.html", 
-                           mezdata=mezdata, 
-                           lg_text = googletransfun.check_language_type(mezdata[2]),
-                           translated_text = googletransfun.translate_tig_eng(mezdata[2]),
+                           mezdata=mezdata,
+                           engTrans=engTrans, 
+                           lg_text = googletransfun.check_language_type(mezdata[3]),
+                           translated_text = googletransfun.translate_tig_eng(mezdata[3]),
                            latin_text = latin_text,
                            tags=db.get_taglist(),
                            selected_mez_tags=selected_mez_tags)
@@ -600,11 +604,14 @@ def pushupdate():
         #print(geez_text)
         alpha_text = rq.form.get("alpha_text")
         #print(alpha_text)
+        engTrans = rq.form.get("engTrans")
+        print("init-pushupdate: " + str(engTrans))
         
         db.set_title(title,id)
         db.set_titleen(titleen,id)
         db.set_azmach(geez_text,id)
         db.set_azmachen(alpha_text,id)
+        db.set_engTrans(engTrans,id)
         
         #Getting the file name form upload. upload function upload file and return the file's name
         mez_audio_filename = upload(rq.files)
@@ -672,7 +679,7 @@ def search():
 @app.route('/add_tag', methods=['GET', 'POST'])
 def add_tag():
     if rq.method == 'POST':
-        role_name = rq.form.get('name')
+        tag_name = rq.form.get('name')
         db.add_tags(tag_name)
         return redirect(url_for('add_tag'))
     return render_template("tags.html", tags=db.get_taglist())

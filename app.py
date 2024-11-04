@@ -1,5 +1,5 @@
 from flask_package import app
-#from flask_package import test_app
+from flask_package import create_default_admin
 
 ##Checks the Flask app's configuration to make sure it is listening on the correct port. This will print the port the Flask app is listening on when it is started
 if __name__ == "__main__":
