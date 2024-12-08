@@ -125,9 +125,9 @@
             <div class="p-2 card mb-3 border-light" style="max-width:18rem; height: 21rem;">
                 <div class="card-header">
                     <a href="{{url_for('translate')}}">Mezmur Files</a>
-                    <form action="/uplaod" method="POST">
-                        <input type="file" name="file" class="form-control" aria-label="default input example">
-                        <input type="submit" value="upload" name="Upload" class="form-control" aria-label="default input example">
+                    <form action="/uplaod" method="POST" enctype="multipart/form-data">
+                        <input type="file" name="file" class="form-control" aria-label="default input example" >
+                        <input type="submit" value="Upload" name="Upload" class="form-control" aria-label="default input example">
                     </form>
 
                 </div>

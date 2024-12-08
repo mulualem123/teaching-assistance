@@ -1,5 +1,5 @@
 import os
-import requests
+#import requests
 import pandas as pd
 import fitz as fz
 import sqlite3
@@ -83,9 +83,6 @@ app.config['UPLOAD_FOLDER'] = pp_parent_folder
 app.config['ALLOWED_EXTENSIONS'] = {'pdf','pptx','ppt'}
 #Ensure the upload folder exists
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
-
-
-
     
 #Initialization 
 geez_text = ""
@@ -160,8 +157,6 @@ def register():
         return redirect(url_for('login'))
     
     return render_template('register.html', form=form)
-
-
 
         #user = User(username=form.username.data, email=form.email.data)
         #user.set_password(form.password.data)
@@ -374,7 +369,13 @@ def translate():
     files = os.listdir(pp_parent_folder)
     if geez_text != "": 
     #    return render_template("index.html", latin_text=changealphabet.geez_to_latin(my_map, geez_text), lg_text = googletransfun.check_language_type(geez_text), geez_text_t = geez_text, translated_text = googletransfun.translate_tig_eng(geez_text),files = os.listdir(pp_parent_folder), rows= db.get_data())
-        return render_template("translate.html", latin_text=changealphabet.geez_to_latin(geez_text), lg_text = googletransfun.check_language_type(geez_text), geez_text_t = geez_text, translated_text = googletransfun.translate_tig_eng(geez_text),files = os.listdir(pp_parent_folder), rows= db.get_data())
+        return render_template("translate.html", 
+                               latin_text=changealphabet.geez_to_latin(geez_text), 
+                               lg_text = googletransfun.check_language_type(geez_text), 
+                               geez_text_t = geez_text, 
+                               translated_text = googletransfun.translate_tig_eng(geez_text),
+                               files = os.listdir(pp_parent_folder), 
+                               rows= db.get_data())
     else:
         return render_template("translate.html",files = os.listdir(pp_parent_folder), rows= db.get_data())
     
@@ -498,13 +499,23 @@ def allowed_file(filename):
 @app.route("/uplaod", methods=['GET', 'POST'])
 def uplaod_file ():
     files = rq.files
+    print ("selected files: " + str(files))
     if rq.method == 'POST':
         # check if the post request has the file part
-        if 'file' not in files:
+        if 'file' not in rq.files:
             flash('No file part')
-            return "No File exist"
-    upload(rq.files)
-    return render_template("index.html",files = os.listdir(pp_parent_folder), rows= db.get_data())
+            return "No File part"
+        file = rq.files['file']
+        if file.filename == '':
+            flash('No file selected for uploading')
+            return "No file selected for uploading"
+        if file and allowed_file(file.filename):
+            filename = secure_filename(file.filename)
+            file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
+            #return filename 
+            return render_template("translate.html",
+                                   files = os.listdir(pp_parent_folder), 
+                                   rows= db.get_data())
 
 def upload (files):
     #check if the post request has the file part
