@@ -66,7 +66,6 @@ with app.app_context():
 def load_user(user_id):
     return User.query.get(int(user_id))
 
-
 from .models import User    #Orginal
 #gamail = Gmail(app)
 #test = gamail.reminder  # test the connection with gmail server
@@ -536,8 +535,7 @@ def upload (files):
         return filename
     else:
         return render_template("index.html",files = os.listdir(pp_parent_folder), rows= db.get_data())
-
-    
+  
 @app.route('/delete/<id>')
 @login_required
 def delete (id):
@@ -658,7 +656,41 @@ def pushupdate():
                         mez_tags = db.get_allMezTags(),
                         tags=db.get_taglist()
                        )
-             
+@app.route('/add_mezmur', methods=['GET', 'POST'])
+def add_mezmur():
+    if rq.method == 'POST':
+        title = rq.form.get("title")
+        geez_text = rq.form.get("geez_text")
+        alpha_text = rq.form.get("alpha_text")
+        engTrans = rq.form.get("engTrans")
+        PPFile = "Direct entry"
+        audioFile = rq.files.get("file")
+
+        # Handle the file if needed
+        # if file:
+        #     filename = secure_filename(file.filename)
+        #     file.save(os.path.join('uploads', filename))
+        print("Title" + str(title))
+        print("geez_text" + str(geez_text))
+        print("alpha_text" + str(alpha_text))
+        print("engTrans" + str(engTrans))
+
+        try:
+            db.mv_database(title,geez_text,alpha_text,engTrans,PPFile,audioFile,"NA","NA","NA")
+        except Exception as e:
+            return str(e)
+
+    return render_template("mezmur.html", 
+                            latin_text=changealphabet.geez_to_latin(geez_text), 
+                            lg_text = googletransfun.check_language_type(geez_text), 
+                            geez_text_t = geez_text, 
+                            translated_text = googletransfun.translate_tig_eng(geez_text),
+                            files = os.listdir(pp_parent_folder), 
+                            rows= db.get_data(),
+                            mez_tags = db.get_allMezTags(),
+                            tags=db.get_taglist()
+                           )
+        
 @app.route('/selectedmez/<id>')
 def selected(id):
     #print(id)
