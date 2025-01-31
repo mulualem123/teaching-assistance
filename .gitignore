@@ -1,0 +1,12 @@
+# Ignore database files
+teaching-assistance/flask_package/instance/site.db
+
+# Ignore compiled Python files
+__pycache__/
+*.pyc
+
+# Ignore environment variables file
+.env
+
+# Ignore virtual environment directory
+venv/

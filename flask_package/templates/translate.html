@@ -51,7 +51,7 @@
     <main>
         <div class="d-flex justify-content-left flex-wrap">
             <div class="p-2 card border-light mb-3" style="max-width: 18rem;">
-                <div class="card-header"><a href="{{url_for('translate')}}">Geez/Tigrigna</a></div>
+                <div class="card-header"><a href="{{url_for('translate')}}">Translation</a></div>
                 <div class="card-body">
                 <h5 class="card-title">Insert Geez/Tigrigna/Amharic Words below.</h5>
                 <form action="/convert" method="POST">
@@ -122,7 +122,7 @@
                     <p class="card-text"><div class="d-print-none border container-fluid container-xl"><p>{{ translated_text }}</p></div></p>
                 </div>
             </div>
-        {% if current_user.is_authenticated and 'admin' in current_user.roles %}
+        {% if current_user.is_authenticated and ('admin' in current_user.roles or 'mezmur_editor' in current_user.roles) %}
             <div class="p-2 card mb-3 border-light" style="max-width:18rem; height: 21rem;">
                 <div class="card-header">
                     <a href="{{url_for('translate')}}">Mezmur Files</a>

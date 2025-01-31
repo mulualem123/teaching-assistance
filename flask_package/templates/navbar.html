@@ -16,7 +16,7 @@
           <li class="nav-item">
             <a class="nav-link {% block activeTranslate %}{% endblock  %}" href="{{url_for('translate')}}">Translate</a>
           </li>
-          {% if current_user.is_authenticated%}
+          {% if current_user.is_authenticated and 'admin' in current_user.roles %}
           <li class="nav-item">
             <a class="nav-link {% block activeCalender %}{% endblock  %}" aria-current="page" href="{{url_for('calendar')}}">Calendar</a>
           </li>
