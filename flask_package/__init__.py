@@ -13,8 +13,8 @@ from . import db                #Orginal
 from .extractpp import extract  #Orginal
 from . import googletransfun    #Orginal
 from . import changealphabet    #Orginal
-from .forms import RegistrationForm, LoginForm    #Orginal
-from .models import db as account_db, User, Role, roles_users    #Orginal
+from .forms import RegistrationForm, LoginForm, PlaylistForm    #Orginal
+from .models import db as account_db, User, Role, roles_users, Playlist    #Orginal
 from flask_security import Security, SQLAlchemyUserDatastore, UserMixin, RoleMixin, roles_required
 from flask_migrate import Migrate  # Import Migrate here
 from werkzeug.utils import secure_filename
@@ -59,7 +59,7 @@ security = Security(app, user_datastore)
         
 with app.app_context():
     account_db.create_all()
-
+    print("Tables created successfully!")
 
 # Import models after initializing account_db to avoid circular imports
 @login_manager.user_loader
@@ -748,7 +748,114 @@ def send_message():
     
     response = requests.post(TELEGRAM_API_URL, json=payload)
     return response.json()
+################################PlayList###################
+# Create a playlist
+@app.route('/playlist/create', methods=['GET', 'POST'])
+@login_required
+def create_playlist():
+    form = PlaylistForm()
+    if form.validate_on_submit():
+        new_playlist = Playlist(user_id=current_user.id, name=form.name.data, description=form.description.data)
+        account_db.session.add(new_playlist)
+        account_db.session.commit()
+        flash('playlist created!', 'success')
+        return redirect(url_for('view_playlists'))
+    return render_template('create_playlist.html', form=form)
 
+# View all playlists
+@app.route('/playlists')
+@login_required
+def view_playlists():
+    playlists = Playlist.query.filter_by(user_id=current_user.id).all()
+    return render_template('playlists.html', playlists=playlists)
+
+# View a single playlist and its songs
+@app.route('/playlist/<int:playlist_id>')
+@login_required
+def view_playlist(playlist_id):
+    playlist = Playlist.query.get_or_404(playlist_id)
+    if playlist.user_id != current_user.id:
+        flash('Access denied!', 'danger')
+        return redirect(url_for('view_playlists'))
+    
+    # Fetch song details from SQLite (`db`)
+    songs = []
+    for song_rel in playlist.songs.all():
+        song_data = db.get_selected_data(song_rel.song_id)  # Use your SQLite helper
+        if song_data:
+            songs.append(song_data)
+    
+    return render_template('playlist.html', playlist=playlist, songs=songs)
+
+@app.route('/playlist/<int:playlist_id>/delete', methods=['POST'])
+@login_required
+def delete_playlist(playlist_id):
+    playlist = Playlist.query.get_or_404(playlist_id)
+    if playlist.user_id != current_user.id:
+        abort(403)
+    # Delete associated songs
+    PlaylistSong.query.filter_by(playlist_id=playlist_id).delete()
+    account_db.session.delete(playlist)
+    account_db.session.commit()
+    flash('Playlist deleted successfully!', 'success')
+    return redirect(url_for('view_playlists'))
+    
+# Add a song to a playlist
+@app.route('/add_to_playlist', methods=['POST'])
+@login_required
+def add_to_playlist():
+    song_id = rq.form.get('song_id')
+    playlist_id = rq.form.get('playlist_id')
+    
+    # Validate song exists in SQLite (`db`)
+    if not db.get_selected_data(song_id):  # Use your SQLite helper
+        flash('Song not found!', 'danger')
+        return redirect(url_for('mezmur'))
+    
+    # Validate playlist belongs to user
+    playlist = Playlist.query.get(playlist_id)
+    if not playlist or playlist.user_id != current_user.id:
+        flash('Invalid playlist!', 'danger')
+        return redirect(url_for('mezmur'))
+    
+    # Check if song is already in the playlist
+    existing = PlaylistSong.query.filter_by(
+        playlist_id=playlist_id, 
+        song_id=song_id
+    ).first()
+    if existing:
+        flash('Song already in playlist!', 'warning')
+        return redirect(url_for('mezmur'))
+    
+    # Add to playlist
+    new_entry = PlaylistSong(playlist_id=playlist_id, song_id=song_id)
+    account_db.session.add(new_entry)
+    account_db.session.commit()
+    flash('Song added to playlist!', 'success')
+    return redirect(url_for('view_playlist', playlist_id=playlist_id))
+
+# Remove a song from a playlist
+@app.route('/remove_from_playlist/<int:playlist_id>/<int:song_id>', methods=['POST'])
+@login_required
+def remove_from_playlist(playlist_id, song_id):
+    playlist = Playlist.query.get_or_404(playlist_id)
+    if playlist.user_id != current_user.id:
+        flash('Access denied!', 'danger')
+        return redirect(url_for('view_playlists'))
+    
+    entry = PlaylistSong.query.filter_by(
+        playlist_id=playlist_id, 
+        song_id=song_id
+    ).first()
+    
+    if entry:
+        account_db.session.delete(entry)
+        account_db.session.commit()
+        flash('Song removed from playlist!', 'success')
+    
+    return redirect(url_for('view_playlist', playlist_id=playlist_id))
+
+################################PlayList end################
 @app.route('/test',  methods=['GET'])
 def test():
     users = [

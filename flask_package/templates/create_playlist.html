@@ -1,0 +1,16 @@
+<!-- templates/create_playlist.html -->
+  <h2>Create a New Playlist</h2>
+  <form method="POST">
+    {{ form.hidden_tag() }}
+    <div>
+      {{ form.name.label }}<br>
+      {{ form.name(size=32) }}
+    </div>
+    <div>
+      {{ form.description.label }}<br>
+      {{ form.description(rows=4) }}
+    </div>
+    <div>
+      {{ form.submit() }}
+    </div>
+  </form>

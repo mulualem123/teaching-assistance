@@ -3,6 +3,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 #from flask_login import UserMixin
 from flask_security import RoleMixin, UserMixin
 import uuid
+from datetime import datetime
 
 db = SQLAlchemy()
 
@@ -12,6 +13,22 @@ roles_users = db.Table('roles_users',
     db.Column('role_id', db.Integer(), db.ForeignKey('roles.id'))
 )
 
+#Playlist
+class Playlist(db.Model):
+    __tablename__ = 'playlist'
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    name = db.Column(db.String(100), nullable=False)
+    description = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    songs = db.relationship('PlaylistSong', backref='playlist', lazy='dynamic')
+    
+class PlaylistSong(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    playlist_id = db.Column(db.Integer, db.ForeignKey('playlist.id'), nullable=False)
+    song_id = db.Column(db.Integer, nullable=False)
+    added_at = db.Column(db.Date, default=datetime.utcnow)
+    
 class Role(RoleMixin, db.Model):
     __tablename__ = 'roles'
     id = db.Column(db.Integer, primary_key=True)
@@ -28,7 +45,7 @@ class User(UserMixin, db.Model):
     active = db.Column(db.Boolean(), default=True)
     # Many-to-Many relationship with roles
     roles = db.relationship('Role', secondary=roles_users, backref=db.backref('users', lazy='dynamic'))
-
+    playlists = db.relationship('Playlist', backref='user', lazy=True)
     def set_password(self, password):
         self.password = generate_password_hash(password)
 

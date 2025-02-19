@@ -110,43 +110,48 @@
                           {%endif%}
                         </ul>
                       </div>
-                      {% if current_user.is_authenticated and ('admin' in current_user.roles or 'mezmur_editor' in current_user.roles) %}
-                      <div class="dropdown btn-group">
-                        <button type="button" class="btn btn-primary dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false" data-bs-auto-close="outside">
-                          Add Muzmur
-                        </button>
-                        <form class="dropdown-menu p-4" method="POST" action="/add_mezmur">
-                          <div class="mb-3">
-                            <label for="engTrans" class="form-label">Title</label>
-                            <input type="text" name="title" value="" placeholder="Title" required>
-                            <label for="engTrans" class="form-label">Title Eng Alphabet</label>
-                            <input type="text" name="titleen" value="" placeholder="Title Eng Alphabet" required>
-                            <label for="engTrans" class="form-label">Azmach</label>
-                            <textarea id="floatingTextarea" name="geez_text" class="form-control" rows="5" cols="25" ></textarea>
-                            <label for="engTrans" class="form-label">Azmachen</label>
-                            <textarea id="floatingTextarea" name="alpha_text" class="form-control" rows="5" cols="25" ></textarea>
-                            <label for="engTrans" class="form-label">Hyme</label>
-                            <textarea id="floatingTextarea" name="engTrans" class="form-control" rows="5" cols="25" ></textarea>
-                            <label for="file" class="form-label">Mezmur Audio</label>
-                            <input type="file" name="file" class="form-control" aria-label="default input example" value="">
+                      {% if current_user.is_authenticated %}
+                        {%if 'admin' in current_user.roles or 'mezmur_editor' in current_user.roles %}
+                          <div class="dropdown btn-group">
+                            <button type="button" class="btn btn-primary dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false" data-bs-auto-close="outside">
+                              Add Muzmur
+                            </button>
+                            <form class="dropdown-menu p-4" method="POST" action="/add_mezmur">
+                              <div class="mb-3">
+                                <label for="engTrans" class="form-label">Title</label>
+                                <input type="text" name="title" value="" placeholder="Title" required>
+                                <label for="engTrans" class="form-label">Title Eng Alphabet</label>
+                                <input type="text" name="titleen" value="" placeholder="Title Eng Alphabet" required>
+                                <label for="engTrans" class="form-label">Azmach</label>
+                                <textarea id="floatingTextarea" name="geez_text" class="form-control" rows="5" cols="25" ></textarea>
+                                <label for="engTrans" class="form-label">Azmachen</label>
+                                <textarea id="floatingTextarea" name="alpha_text" class="form-control" rows="5" cols="25" ></textarea>
+                                <label for="engTrans" class="form-label">Hyme</label>
+                                <textarea id="floatingTextarea" name="engTrans" class="form-control" rows="5" cols="25" ></textarea>
+                                <label for="file" class="form-label">Mezmur Audio</label>
+                                <input type="file" name="file" class="form-control" aria-label="default input example" value="">
+                              </div>
+                              <button type="submit" class="btn btn-primary">Submit</button>
+                            </form>
                           </div>
-                          <button type="submit" class="btn btn-primary">Submit</button>
-                        </form>
-                      </div>
-                      <div class="dropdown btn-group">
-                        <button type="button" class="btn btn-primary dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false" data-bs-auto-close="outside">
-                          Add Filter
-                        </button>
-                        <form class="dropdown-menu p-4" method="POST" action="/add_tag">
-                          <div class="mb-3">
-                            <input type="text" name="name" value="" placeholder="Tag Name" required>
+                          <div class="dropdown btn-group">
+                            <button type="button" class="btn btn-primary dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false" data-bs-auto-close="outside">
+                              Add Filter
+                            </button>
+                            <form class="dropdown-menu p-4" method="POST" action="/add_tag">
+                              <div class="mb-3">
+                                <input type="text" name="name" value="" placeholder="Tag Name" required>
+                              </div>
+                              <button type="submit" class="btn btn-primary">Submit</button>
+                            </form>
                           </div>
-                          <button type="submit" class="btn btn-primary">Submit</button>
-                        </form>
-                      </div>
-                      <div class="dropdown btn-group">
-                        <a class="btn btn-primary" href={{url_for('add_tag')}} role="button">Edit Filters</a>
-                      </div>
+                          <div class="dropdown btn-group">
+                            <a class="btn btn-primary" href={{url_for('add_tag')}} role="button">Edit Filters</a>
+                          </div>
+                        {%endif%}
+                        <div class="dropdown btn-group">
+                          <a class="btn btn-primary" href={{url_for('view_playlists')}} role="button">Play Lists</a>
+                        </div>
                       {%endif%}
                     </ul>
                   </div>
@@ -179,7 +184,20 @@
                             <tr>
                                 <!--<td><li class="list-group-item"><a href={{ url_for('selected',id=row[0]) }}>{{ row[0] }}</a></td>-->
                                 <td><button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modal-{{ loop.index }}">  Preview {{ loop.index }} </button></td>
-                                <td>{{ row[1] }}</td>
+                                <td>{{ row[1] }}
+                                  <div class="song">
+                                    <h3>{{ row[1] }}</h3>  <!-- Song title -->
+                                    <form method="POST" action="{{ url_for('add_to_playlist') }}">
+                                      <input type="hidden" name="song_id" value="{{ row[0] }}">  <!-- Song ID from SQLite -->
+                                      <select name="playlist_id">
+                                        {% for playlist in current_user.playlists %}
+                                          <option value="{{ playlist.id }}">{{ playlist.name }}</option>
+                                        {% endfor %}
+                                      </select>
+                                      <button type="submit">Add to Playlist</button>
+                                    </form>
+                                  </div>
+                                </td>
                                 <td><p class ="preserve-line-breaks"> {{ row[3] }}</p></td>
                                 <td>{{ row[4] }}</td>
                                 <td>{{ row[5] }}</td>
@@ -200,7 +218,9 @@
                                         <source src="{{ url_for('audio',id = row[0] ) }}" type="audio/mpeg">
                                     </audio>
                                 </td>
-                                <!-- Add more cells for other columns -->
+                          <!-- Inside the loop where songs are listed -->
+
+
                             </tr>
                           <!-- Preview Modal -->
                             <div class="modal fade" id="modal-{{ loop.index }}" tabindex="-1" aria-labelledby="exampleModalLabel" aria-hidden="true" >

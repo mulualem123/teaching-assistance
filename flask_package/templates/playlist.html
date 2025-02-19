@@ -1,0 +1,12 @@
+
+  <h2>{{ playlist.name }}</h2>
+  <p>{{ playlist.description }}</p>
+  <h3>Songs</h3>
+  {% for song in songs %}
+    <div class="song">
+      <h4>{{ song[1] }}</h4>  <!-- Assuming song[1] is the title -->
+      <form method="POST" action="{{ url_for('remove_from_playlist', playlist_id=playlist.id, song_id=song[0]) }}">
+        <button type="submit">Remove</button>
+      </form>
+    </div>
+  {% endfor %}

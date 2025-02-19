@@ -1,0 +1,9 @@
+
+  <h2>Your Playlists</h2>
+  <a href="{{ url_for('create_playlist') }}">Create New Playlist</a>
+  {% for playlist in playlists %}
+    <div class="playlist">
+      <h3><a href="{{ url_for('view_playlist', playlist_id=playlist.id) }}">{{ playlist.name }}</a></h3>
+      <p>{{ playlist.description }}</p>
+    </div>
+  {% endfor %}
