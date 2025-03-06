@@ -1,6 +1,4 @@
 import os
-import base64
-from datetime import datetime
 #import requests
 import pandas as pd
 import fitz as fz
@@ -114,7 +112,19 @@ def create_default_admin():
             #use the following export variables to set up Admin Email and Admin Password
                 #export ADMIN_EMAIL='admin@example.com'
                 #export ADMIN_PASSWORD='your_secure_password'
-                            
+                
+#def create_default_admin():
+#    with app.app_context():
+#        db.create_all()
+#        if not User.query.filter_by(email='admin@example.com').first():
+#            admin_role = user_datastore.find_or_create_role(name='admin', description='Administrator')
+#            user_datastore.create_user(
+#                email='admin@example.com',
+#                password=generate_password_hash('admin_password'),
+#                roles=[admin_role]
+#            )
+#            db.session.commit()
+            
 @app.route('/register', methods=['GET', 'POST'])
 def register():
     form = RegistrationForm()
@@ -226,17 +236,17 @@ def edit_user():
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     return security.login_form()
-    #    form = LoginForm()
-    #    if form.validate_on_submit():
-    #        user = User.query.filter_by(email=form.email.data).first()
-    #        if user and user.check_password(form.password.data):
-    #            login_user(user)
-    #            flash('Logged in successfully', 'success')
-    #            return redirect(url_for('index'))
-    #        else:
-    #            flash('Invalid email or password', 'danger')
-    #            return redirect(url_for('login'))
-    #    return render_template('login.html', form=form)
+#    form = LoginForm()
+#    if form.validate_on_submit():
+#        user = User.query.filter_by(email=form.email.data).first()
+#        if user and user.check_password(form.password.data):
+#            login_user(user)
+#            flash('Logged in successfully', 'success')
+#            return redirect(url_for('index'))
+#        else:
+#            flash('Invalid email or password', 'danger')
+#            return redirect(url_for('login'))
+#    return render_template('login.html', form=form)
 
 @app.route('/logout', methods=['GET', 'POST'])
 @login_required
@@ -373,19 +383,24 @@ def translate():
 #Return Audio
 @app.route("/audio/<id>")
 def audio(id):
-    # Get the audio file from the database using the passed id
-    print("This is passed id from mezmur page: " + str(id))
+    #files = os.listdir(r'flask_package\pp')
+    #return render_template("index.html", files=files, events=events)
+    #files = os.listdir(r"C:\\Users\\selon\\Documents\\Bete Christian\\Mezmur")
+    #get the audio file from database from passed id
+    print("This is passed id from mezmur page " + str(id))
+    #First print list of audios 
     audio_list = db.get_audio(id)
-    
     if audio_list:
         selected_audio = audio_list[0]
         print("001 audio/Selected_audio_exist " + str(selected_audio))
     else:
+    # Handle the case where the list is empty
         selected_audio = "NA"
         print("002 Selected_audio " + str(selected_audio))
     
+    #return send_from_directory('static/audio', "audio_2023-07-05_21-32-44.ogg")
     return send_from_directory('static/audio', str(selected_audio))
-
+    
 #A function that returns text from given/selected PowerPoint file.
 @app.route('/display/<filename>')
 def display (filename):
@@ -528,20 +543,12 @@ def upload (files):
 def delete (id):
     db.delete_data(id)
     #return render_template("index.html",files = os.listdir(pp_parent_folder), rows=db.get_data())
-    form = PlaylistForm()
+    if geez_text != "": 
+        #return render_template("index.html", latin_text=changealphabet.geez_to_latin(my_map, geez_text), lg_text = googletransfun.check_language_type(geez_text), geez_text_t = geez_text, translated_text = googletransfun.translate_tig_eng(geez_text),files = os.listdir(pp_parent_folder), rows= db.get_data())
+        return render_template("mezmur.html", latin_text=changealphabet.geez_to_latin(geez_text), lg_text = googletransfun.check_language_type(geez_text), geez_text_t = geez_text, translated_text = googletransfun.translate_tig_eng(geez_text),files = os.listdir(pp_parent_folder), rows= db.get_data())
+    else:
+        return render_template("mezmur.html",files = os.listdir(pp_parent_folder), rows= db.get_data())
 
-    return render_template("mezmur.html", 
-                            latin_text=changealphabet.geez_to_latin(geez_text), 
-                            lg_text = googletransfun.check_language_type(geez_text), 
-                            geez_text_t = geez_text, 
-                            translated_text = googletransfun.translate_tig_eng(geez_text),
-                            files = os.listdir(pp_parent_folder), 
-                            rows= db.get_data(),
-                            mez_tags = db.get_allMezTags(),
-                            tags=db.get_taglist(),
-                            form = form
-                           )
-    
 @app.route('/update/<id>',  methods=['GET', 'POST'])
 @login_required
 def update (id):
@@ -590,80 +597,69 @@ def update (id):
                            tags=db.get_taglist(),
                            selected_mez_tags=selected_mez_tags)
 
-@app.route('/pushupdate', methods=['POST'])
+@app.route('/pushupdate', methods=['POST'])    
 def pushupdate():
-    # Configure allowed extensions and upload folder. Note that we've added 'webm' since recorded audio might be in this format.
     app.config['UPLOAD_FOLDER'] = audio_folder
-    app.config['ALLOWED_EXTENSIONS'] = {'mp3', 'mpeg', 'ogg', 'mp4', 'm4a', 'webm'}
-
+    app.config['ALLOWED_EXTENSIONS'] = {'mp3','mpeg','ogg','mp4','m4a'}
     form = PlaylistForm()
-
     if rq.method == 'POST':
-        mezmur_id = rq.form.get("id")
+
+        #upload(rq.files)
+        id = rq.form.get("id")
+        print("Id from form ")
+        print(id)
         title = rq.form.get("title")
+        #print(title)
         titleen = rq.form.get("titleen")
+        #print(titleen)
         geez_text = rq.form.get("geez_text")
+        #print(geez_text)
         alpha_text = rq.form.get("alpha_text")
+        #print(alpha_text)
         engTrans = rq.form.get("engTrans")
+        print("init-pushupdate: " + str(engTrans))
+        
+        db.set_title(title,id)
+        db.set_titleen(titleen,id)
+        db.set_azmach(geez_text,id)
+        db.set_azmachen(alpha_text,id)
+        db.set_engTrans(engTrans,id)
+        
+        #Getting the file name form upload. upload function upload file and return the file's name
+        mez_audio_filename = upload(rq.files)
+        print ("mez_audio_filename " + str(mez_audio_filename))
+        if "File has no name" not in mez_audio_filename :
+            db.set_audio_file(mez_audio_filename,id)   
 
-        # Update the mezmur details in the database.
-        db.set_title(title, mezmur_id)
-        db.set_titleen(titleen, mezmur_id)
-        db.set_azmach(geez_text, mezmur_id)
-        db.set_azmachen(alpha_text, mezmur_id)
-        db.set_engTrans(engTrans, mezmur_id)
-
-        # First, attempt to get an uploaded audio file.
-        uploaded_filename = upload(rq.files)
-        if "File has no name" not in uploaded_filename:
-            db.set_audio_file(uploaded_filename, mezmur_id)
-        else:
-            # No file was uploaded. Check for recorded audio data.
-            recorded_audio_data = rq.form.get("recorded_audio", "")
-            if recorded_audio_data and recorded_audio_data.startswith("data:"):
-                try:
-                    # Split the data URL: e.g. "data:audio/webm; codecs=opus;base64,BASE64..."
-                    header, encoded = recorded_audio_data.split(',', 1)
-                    # Determine the file extension based on the header
-                    if "audio/webm" in header:
-                        extension = "webm"
-                    elif "audio/ogg" in header:
-                        extension = "ogg"
-                    else:
-                        extension = "mp3"  # Default to mp3 if type is unrecognized
-
-                    filename = f"recorded_{datetime.now().strftime('%Y%m%d_%H%M%S')}.{extension}"
-                    file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-
-                    # Write the decoded audio data to file.
-                    with open(file_path, "wb") as f:
-                        f.write(base64.b64decode(encoded))
-
-                    db.set_audio_file(filename, mezmur_id)
-                    print(f"Recorded audio saved as {filename}")
-                except Exception as e:
-                    print("Error saving recorded audio:", e)
-
-        # Update selected tags (if any)
-        selected_tags = rq.form.getlist('selected_tags')
+        rows= db.get_data()  
+        
+        
+        selected_tags = rq.form.getlist('selected_tags')  # get the selected tags from the form
         if selected_tags:
-            print("Updating tags:")
-            for num, tag in enumerate(selected_tags, start=1):
-                print(f"Tag {num}: {tag}")
-            db.update_mez_tags(selected_tags, mezmur_id)
+            num = 1
+            print ("This is going to print tags")
+            for  tag in selected_tags:
+                print ("Tag " + str(num) + str(tag))
+                num = num + 1
+            
+            db.update_mez_tags(selected_tags, id)
 
-    # Render the updated mezmur display page.
+        #for row in rows:
+        #    for i in range(11):
+        #        print (row[i]) 
+        #audio_files={row[0]:audio_dic.get(row[0], None) for row in rows}
+  
     return render_template("mezmur.html", 
-                           latin_text=changealphabet.geez_to_latin(geez_text), 
-                           lg_text=googletransfun.check_language_type(geez_text), 
-                           geez_text_t=geez_text, 
-                           translated_text=googletransfun.translate_tig_eng(geez_text),
-                           files=os.listdir(pp_parent_folder), 
-                           rows=db.get_data(),
-                           mez_tags=db.get_allMezTags(),
-                           tags=db.get_taglist(),
-                           form=form)
-    
+                        latin_text=changealphabet.geez_to_latin(geez_text), 
+                        lg_text = googletransfun.check_language_type(geez_text), 
+                        geez_text_t = geez_text, 
+                        translated_text = googletransfun.translate_tig_eng(geez_text),
+                        files = os.listdir(pp_parent_folder), 
+                        rows= db.get_data(),
+                        mez_tags = db.get_allMezTags(),
+                        tags=db.get_taglist(),
+                        form=form
+                       )
 @app.route('/add_mezmur', methods=['GET', 'POST'])
 def add_mezmur():
     if rq.method == 'POST':
@@ -767,7 +763,7 @@ def create_playlist():
         account_db.session.add(new_playlist)
         account_db.session.commit()
         flash('playlist created!', 'success')
-        return redirect(url_for('mezmur'))
+        return redirect(url_for('view_playlists'))
     return render_template('create_playlist.html', form=form)
 
 # View all playlists
@@ -938,45 +934,58 @@ def add_to_playlist_form():
     flash('Song added to playlist!', 'success')
     return redirect(url_for('view_playlist', playlist_id=playlist_id))
 
-@app.route('/playlist/<int:playlist_id>/add/<int:song_id>', methods=['POST'])
+@app.route('/playlist/<int:playlist_id>/add/<int:song_id>', methods=['GET','POST'])
 @login_required
 def add_to_playlist(playlist_id, song_id):
     try:
         print(f"Attempting to add song {song_id} to playlist {playlist_id}")
         
-        # Retrieve song data (once)
         song_data = db.get_selected_data(song_id)
-        if not song_data:
+        print("Song Data:", song_data)  # Debug SQLite data
+        
+        playlist = Playlist.query.get(playlist_id)
+        print("Playlist:", playlist)  # Debug SQLAlchemy data
+        
+        # Validate song exists in SQLite
+        if not db.get_selected_data(song_id):
             return jsonify({
                 'status': 'error',
                 'message': 'Song not found'
             }), 404
-        print("Song Data:", song_data)
-        
-        # Retrieve and validate playlist using get_or_404
+
+        # Validate playlist belongs to user
         playlist = Playlist.query.get_or_404(playlist_id)
-        print("Playlist:", playlist)
-        
-        # Ensure the playlist belongs to the current user
         if playlist.user_id != current_user.id:
             return jsonify({
                 'status': 'error',
                 'message': 'Invalid playlist'
             }), 403
-        
-        # Check if the song is already in the playlist
-        if PlaylistSong.query.filter_by(playlist_id=playlist_id, song_id=song_id).first():
+
+        # Check for existing entry
+        if PlaylistSong.query.filter_by(
+            playlist_id=playlist_id,
+            song_id=song_id
+        ).first():
             return jsonify({
                 'status': 'warning',
                 'message': 'Song already in playlist'
             }), 409
 
-        # Add the song to the playlist
-        new_entry = PlaylistSong(playlist_id=playlist_id, song_id=song_id)
+        # Add to playlist
+        new_entry = PlaylistSong(
+            playlist_id=playlist_id,
+            song_id=song_id
+        )
         account_db.session.add(new_entry)
         account_db.session.commit()
+
+        return jsonify({
+            'status': 'success',
+            'message': 'Song added to playlist',
+            'playlist': playlist.name,
+            'count': playlist.songs.count()
+        }), 201
         
-        # Create a single consolidated JSON response
         response_data = {
             'status': 'success',
             'message': 'Song added successfully',
@@ -987,21 +996,20 @@ def add_to_playlist(playlist_id, song_id):
             },
             'song': {
                 'id': song_id,
-                'title': song_data[1]  # assuming the title is in the second position
+                'title': song_data[1]
             }
         }
-        
-        print("Returning JSON:", response_data)
+
+        print("Returning JSON:", response_data)  # Debug final response
         return jsonify(response_data), 201
 
     except Exception as e:
         account_db.session.rollback()
-        print("Error occurred:", str(e))
+        print("Error occurred:", str(e))  # Debug errors
         return jsonify({'status': 'error', 'message': str(e)}), 500
-
     
 # Remove a song from a playlist
-@app.route('/remove_from_playlist/<int:playlist_id>/<int:song_id>', methods=['GET','POST'])
+@app.route('/remove_from_playlist/<int:playlist_id>/<int:song_id>', methods=['POST'])
 @login_required
 def remove_from_playlist_form(playlist_id, song_id):
     playlist = Playlist.query.get_or_404(playlist_id)
@@ -1074,7 +1082,7 @@ def test():
 def dashboard():
     return f'hello,{current_user.username}! welcome to your dashboard' 
   
-
+app.config["SECRET_KEY"]= b'\xa4\x99hM\x12s\xc3\x8d'
 
 ###########################Share Playlist #########################
 @app.route('/playlist/shared/<int:playlist_id>')
@@ -1082,5 +1090,3 @@ def view_shared_playlist(playlist_id):
     playlist = Playlist.query.get_or_404(playlist_id)
     return render_template('shared_playlist.html', playlist=playlist)
     
-    
-app.config["SECRET_KEY"]= b'\xa4\x99hM\x12s\xc3\x8d'

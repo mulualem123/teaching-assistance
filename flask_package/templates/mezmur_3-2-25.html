@@ -62,92 +62,60 @@
                     <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4" id="mezmurGrid">
                         {% for row in rows %}
                         <div class="col mezmur-card-container" data-lyrics="{{ row[3] }} {{ row[5] }}">
-                            <div class="card mezmur-card h-100" 
-                                 style="cursor: pointer;"
-                                 onclick="event.target.closest('.dropdown') || document.getElementById('mezmurModalTrigger{{ row[0] }}').click()">
-                                <div class="card-header bg-transparent border-0 pt-3 pb-0">
-                                    <div class="d-flex justify-content-between align-items-center">
-                                        <h5 class="card-title mb-0">🎵 {{ row[1] }}</h5>
-                                        <div class="dropdown" onclick="event.stopPropagation()">
-                                            <button class="btn btn-link p-0 text-muted" type="button" 
-                                                    data-bs-toggle="dropdown" aria-expanded="false">
-                                                <i class="bi bi-three-dots-vertical fs-5"></i>
-                                            </button>
-                                            <ul class="dropdown-menu dropdown-menu-end">
-                                                <!-- <li>
-                                                    <a class="dropdown-item" 
-                                                       data-bs-toggle="modal" 
-                                                       data-bs-target="#mezmurModal{{ row[0] }}">
-                                                        View Mezmur
-                                                    </a>
-                                                </li> -->
-                                                <li>
-                                                    <a class="dropdown-item" 
-                                                       data-bs-toggle="modal" 
-                                                       data-bs-target="#collectionsModal{{ row[0] }}">
-                                                        Add to Collection
-                                                    </a>
-                                                </li>
-                                                {% if current_user.is_authenticated and ('admin' in current_user.roles or 'mezmur_editor' in current_user.roles) %}
-                                                <li>
-                                                    <a class="dropdown-item" href="{{ url_for('update',id=row[0]) }}">
-                                                        Edit Mezmur
-                                                    </a>
-                                                </li>
-                                                {% endif %}
-                                            </ul>
-                                        </div>
-                                    </div>
-                                </div>
-                        
+                            <div class="card mezmur-card h-100">
                                 <div class="card-body">
-                                    <!-- Hidden trigger for the modal -->
-                                    <button id="mezmurModalTrigger{{ row[0] }}" 
-                                            style="display: none;" 
-                                            data-bs-toggle="modal" 
-                                            data-bs-target="#mezmurModal{{ row[0] }}"></button>
-                        
+                                    <div class="d-flex justify-content-between align-items-center mb-3">
+                                        <h5 class="card-title mb-0">🎵 {{ row[1] }}</h5>
+                                        <span class="badge bg-primary">#{{ loop.index }}</span>
+                                    </div>
+                                
                                     <div class="tags mb-3">
                                         {% for tag in mez_tags if tag[1] == row[0] %}
                                         <span class="tag-pill">{{ tag[2] }}</span>
                                         {% endfor %}
                                     </div>
-                                </div>
-                            </div>
-                        </div>
-                
-                        <!-- Collections Modal for this Mezmur -->
-                        <div class="modal fade" id="collectionsModal{{ row[0] }}" tabindex="-1">
-                            <div class="modal-dialog modal-dialog-centered">
-                                <div class="modal-content">
-                                    <div class="modal-header">
-                                        <h5 class="modal-title">Add to Collection</h5>
-                                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                                    </div>
-                                    <div class="modal-body">
-                                        <div class="list-group">
-                                            {% for playlist in current_user.playlists %}
-                                            <a 
-                                               class="list-group-item list-group-item-action d-flex justify-content-between align-items-center"
-                                               onclick="addToPlaylist(event, {{ row[0] }}, {{ playlist.id }})"
-                                               data-playlist-id="{{ playlist.id }}">
-                                                {{ playlist.name }}
-                                                <span class="badge bg-primary rounded-pill">{{ playlist.songs.count() }} songs</span>
-
-                                            </a>
-                                            {% endfor %}
-                                        </div>
-                                    </div>
-                                    <div class="modal-footer justify-content-between">
-                                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                                        <button type="button" 
-                                                class="btn btn-primary" 
-                                                data-bs-dismiss="modal"
-                                                data-bs-toggle="modal" 
-                                                data-bs-target="#createPlaylistModal">
-                                            ＋ New Collection
+                                
+                                    <button class="btn btn-outline-primary w-100 mb-2" 
+                                            data-bs-toggle="modal" 
+                                            data-bs-target="#mezmurModal{{ row[0] }}">
+                                        View Lyrics
+                                    </button>
+                                    <!-- add mezmur to javascrip to playlist -->
+                                    <div class="dropdown mb-2"> 
+                                        <button class="btn btn-sm w-100 btn-outline-secondary dropdown-toggle" 
+                                                type="button" 
+                                                data-bs-toggle="dropdown">
+                                            Add to Collection
                                         </button>
+                                        <ul class="dropdown-menu" aria-labelledby="dropdownMenuButton">
+                                            {% for playlist in current_user.playlists %}
+                                            <li>
+                                                <a class="dropdown-item" 
+                                                   href="#"
+                                                   onclick="addToPlaylist({{ row[0] }}, {{ playlist.id }})">
+                                                   {{ playlist.name }}
+                                                </a>
+                                            </li>
+                                            {% endfor %}
+                                            <li><hr class="dropdown-divider"></li>
+                                            <li>
+                                                <a class="dropdown-item text-primary" 
+                                                   data-bs-toggle="modal" 
+                                                   data-bs-target="#createPlaylistModal">
+                                                   ＋ New Collection
+                                                </a>
+                                            </li>
+                                        </ul>
                                     </div>
+                                    {% if current_user.is_authenticated %}
+                                    <!-- Edit mezmur -->
+                                    {% if 'admin' in current_user.roles or 'mezmur_editor' in current_user.roles %}
+                                    <button type="button" 
+                                            class="btn btn-sm btn-warning w-100">
+                                        <a href="{{ url_for('update',id=row[0]) }}">Edit</a>
+                                    </button>
+                                    {% endif %}
+                                    {% endif %}
                                 </div>
                             </div>
                         </div>
@@ -173,47 +141,24 @@
             </div>            
             <div class="playlist-list">
                 {% for playlist in current_user.playlists %}
-                <div class="card playlist-card mb-2" 
-                     data-playlist-id="{{ playlist.id }}"
-                     onclick="loadPlaylist({{ playlist.id }})" 
-                     style="cursor: pointer;">
+                <div class="card playlist-card mb-2" data-playlist-id="{{ playlist.id }}">
                     <div class="card-body">
-                        <div class="d-flex justify-content-between align-items-start">
-                            <!-- Playlist Info -->
-                            <div class="flex-grow-1">
+                        <div class="d-flex justify-content-between">
+                            <div>
                                 <h5 class="mb-1">{{ playlist.name }}</h5>
                                 <p class="text-muted small mb-0">{{ playlist.description }}</p>
-                                <span class="badge bg-secondary">{{playlist.song_count}} hymns</span>
+                                <span class="badge bg-secondary">{{playlist.song_count}} hymns</span>                    
                             </div>
-    
-                            <!-- Three-dot Menu -->
-                            <div class="dropdown ms-2" onclick="event.stopPropagation()">
-                                <button class="btn btn-link p-0 text-muted" 
-                                        type="button" 
-                                        data-bs-toggle="dropdown">
-                                    <i class="bi bi-three-dots-vertical"></i>
+                            <div class="btn-group">
+                                <button class="btn btn-sm btn-outline-primary" 
+                                        data-load-playlist 
+                                        data-playlist-id="{{ playlist.id }}" >
+                                    Open
                                 </button>
-                                <ul class="dropdown-menu dropdown-menu-end">
-                                    <!-- Open Button -->
-                                    <li>
-                                        <button class="dropdown-item" 
-                                                data-load-playlist
-                                                onclick="loadPlaylist({{ playlist.id }})"  
-                                                data-playlist-id="{{ playlist.id }}">
-                                            <i class="bi bi-folder2-open me-2"></i>Open
-                                        </button>
-                                    </li>
-                                    
-                                    <!-- Delete Option -->
-                                    {% if current_user.is_authenticated and ('admin' in current_user.roles or 'mezmur_editor' in current_user.roles) %}
-                                    <li>
-                                        <button class="dropdown-item text-danger" 
-                                                onclick="event.stopPropagation(); deletePlaylist({{ playlist.id }})">
-                                            <i class="bi bi-trash me-2"></i>Delete
-                                        </button>
-                                    </li>
-                                    {% endif %}
-                                </ul>
+                                <button class="btn btn-sm btn-outline-danger" 
+                                        onclick="deletePlaylist({{ playlist.id }})">
+                                    ✕
+                                </button>
                             </div>
                         </div>
                     </div>
@@ -222,6 +167,7 @@
             </div>
         </div>
     </div>
+
     <!-- Mobile Toggle Button -->
     <button class="btn btn-primary sidebar-toggle d-lg-none" 
             onclick="toggleSidebar()">
@@ -318,39 +264,24 @@
                     <button class="btn btn-primary" 
                             type="button" 
                             data-bs-toggle="collapse" 
-                            data-bs-target="#multiCollapseExample3" 
-                            aria-expanded="false" 
-                            aria-controls="multiCollapseExample3">
-                      Translation
-                    </button>
-                    <button class="btn btn-primary" 
-                            type="button" 
-                            data-bs-toggle="collapse" 
                             data-bs-target=".multi-collapse" 
                             aria-expanded="false" 
                             aria-controls="multiCollapseExample1 multiCollapseExample2">
-                      All
+                      Both
                     </button>
                   </p>
                   <div class="col">
                     <div class="row">
                       <div class="collapse multi-collapse" id="multiCollapseExample1">
                         <div class="card card-body" id="colapMezmur">
-                          Mezmur
+                          Anim pariatur cliche reprehenderit, enim eiusmod high life accusamus terry richardson ad squid.
                         </div>
                       </div>
                     </div>
                     <div class="row">
                       <div class="collapse multi-collapse" id="multiCollapseExample2">
                         <div class="card card-body">
-                          Mezmur
-                        </div>
-                      </div>
-                    </div>
-                    <div class="row">
-                      <div class="collapse multi-collapse" id="multiCollapseExample3">
-                        <div class="card card-body">
-                          Mezmur
+                          Nihil anim keffiyeh helvetica, craft beer labore wes anderson cred nesciunt sapiente ea proident.
                         </div>
                       </div>
                     </div>

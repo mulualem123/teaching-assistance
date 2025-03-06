@@ -24,6 +24,7 @@ class Playlist(db.Model):
     songs = db.relationship('PlaylistSong', backref='playlist', lazy='dynamic')
     
 class PlaylistSong(db.Model):
+    __tablename__ = 'playlist_song'
     id = db.Column(db.Integer, primary_key=True)
     playlist_id = db.Column(db.Integer, db.ForeignKey('playlist.id'), nullable=False)
     song_id = db.Column(db.Integer, nullable=False)

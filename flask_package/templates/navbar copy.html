@@ -29,3 +29,291 @@
       </div>
     </div>
   </nav>
+
+
+
+
+
+
+
+  <!-- temp -->
+  <!DOCTYPE html>
+  <html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Playlist Modal with Collapse</title>
+    <!-- Bootstrap 5 CSS -->
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.0/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
+    <!-- Display songs when selecting a playlist clicking open on sidebar -->
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+      <meta charset="UTF-8" />
+      <meta name="viewport" content="width=device-width, initial-scale=1" />
+      <title>Playlist Modal with Lyrics Controls</title>
+      <!-- Bootstrap 5 CSS -->
+      <link
+        href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.0/dist/css/bootstrap.min.css"
+        rel="stylesheet"
+      />
+    </head>
+    <body>
+      <!-- Playlist Modal -->
+      <div class="modal fade" id="playlistModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+          <div class="modal-content">
+            <div class="modal-header bg-light">
+              <h3 class="modal-title">🎵 <span id="playlistName">My Playlist</span></h3>
+              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+              <div class="row">
+                <div class="col-md-8">
+                  <!-- Lyrics Controls: hidden by default with d-none -->
+                  <div id="lyricsControls" class="d-none">
+                    <p>
+                      <a class="btn btn-primary" 
+                         data-bs-toggle="collapse" 
+                         href="#multiCollapseExample1" 
+                         role="button" 
+                         aria-expanded="false" 
+                         aria-controls="multiCollapseExample1">
+                        Toggle first element
+                      </a>
+                      <button class="btn btn-primary" 
+                              type="button" 
+                              data-bs-toggle="collapse" 
+                              data-bs-target="#multiCollapseExample2" 
+                              aria-expanded="false" 
+                              aria-controls="multiCollapseExample2">
+                        Toggle second element
+                      </button>
+                      <button class="btn btn-primary" 
+                              type="button" 
+                              data-bs-toggle="collapse" 
+                              data-bs-target=".multi-collapse" 
+                              aria-expanded="false" 
+                              aria-controls="multiCollapseExample1 multiCollapseExample2">
+                        Toggle both elements
+                      </button>
+                    </p>
+                    <div class="col">
+                      <div class="row">
+                        <div class="collapse multi-collapse" id="multiCollapseExample1">
+                          <div class="card card-body">
+                            Anim pariatur cliche reprehenderit, enim eiusmod high life accusamus terry richardson ad squid.
+                          </div>
+                        </div>
+                      </div>
+                      <div class="row">
+                        <div class="collapse multi-collapse" id="multiCollapseExample2">
+                          <div class="card card-body">
+                            Nihil anim keffiyeh helvetica, craft beer labore wes anderson cred nesciunt sapiente ea proident.
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <!-- Playlist Songs Section -->
+                  <div id="playlistSongs" class="list-group">
+                    <!-- Songs will be loaded here -->
+                  </div>
+                </div>
+                <div class="col-md-4">
+                  <div class="playlist-actions">
+                    <!-- The Play All button triggers the function to reveal the lyrics controls -->
+                    <button class="btn btn-outline-primary w-100 mb-2" onclick="playAll()">
+                      ▶ Play All
+                    </button>
+                    <button class="btn btn-outline-primary w-100 mb-2" onclick="playNextSong()">
+                      ▶ ▶ Play Next
+                    </button>
+                    <button class="btn btn-outline-success w-100 mb-2" data-bs-toggle="modal" data-bs-target="#sharePlaylistModal">
+                      📤 Share
+                    </button>
+                    <textarea class="form-control mb-2" id="playlistDescription" placeholder="Add spiritual reflections..."></textarea>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    
+      <!-- Bootstrap 5 Bundle JS (includes Popper) -->
+      <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.0/dist/js/bootstrap.bundle.min.js"></script>
+      
+      <script>
+        // This function simulates playing all songs.
+        // When called, it reveals the hidden lyrics controls.
+        function playAll() {
+          console.log('Playing all songs...');
+          
+          // Reveal the lyrics controls.
+          const lyricsControls = document.getElementById('lyricsControls');
+          if (lyricsControls.classList.contains('d-none')) {
+            lyricsControls.classList.remove('d-none');
+          }
+          
+          // Add your logic for playing songs here.
+        }
+    
+        // A stub function for playing the next song.
+        function playNextSong() {
+          console.log('Playing the next song...');
+        }
+      </script>
+    </body>
+    </html>
+
+
+    <!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Playlist Modal with Lyrics Controls</title>
+  <!-- Bootstrap 5 CSS -->
+  <link
+    href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.0/dist/css/bootstrap.min.css"
+    rel="stylesheet"
+  />
+</head>
+<body>
+  <!-- Playlist Modal -->
+  <div class="modal fade" id="playlistModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-content">
+        <div class="modal-header bg-light">
+          <h3 class="modal-title">🎵 <span id="playlistName">My Playlist</span></h3>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <div class="row">
+            <div class="col-md-8">
+              <!-- Lyrics Controls: hidden by default -->
+              <div id="lyricsControls" class="d-none">
+                <p>
+                  <a class="btn btn-primary" 
+                     data-bs-toggle="collapse" 
+                     href="#multiCollapseExample1" 
+                     role="button" 
+                     aria-expanded="false" 
+                     aria-controls="multiCollapseExample1">
+                    Toggle first element
+                  </a>
+                  <button class="btn btn-primary" 
+                          type="button" 
+                          data-bs-toggle="collapse" 
+                          data-bs-target="#multiCollapseExample2" 
+                          aria-expanded="false" 
+                          aria-controls="multiCollapseExample2">
+                    Toggle second element
+                  </button>
+                  <button class="btn btn-primary" 
+                          type="button" 
+                          data-bs-toggle="collapse" 
+                          data-bs-target=".multi-collapse" 
+                          aria-expanded="false" 
+                          aria-controls="multiCollapseExample1 multiCollapseExample2">
+                    Toggle both elements
+                  </button>
+                </p>
+                <div class="col">
+                  <div class="row">
+                    <div class="collapse multi-collapse" id="multiCollapseExample1">
+                      <div class="card card-body">
+                        Anim pariatur cliche reprehenderit, enim eiusmod high life accusamus terry richardson ad squid.
+                      </div>
+                    </div>
+                  </div>
+                  <div class="row">
+                    <div class="collapse multi-collapse" id="multiCollapseExample2">
+                      <div class="card card-body">
+                        Nihil anim keffiyeh helvetica, craft beer labore wes anderson cred nesciunt sapiente ea proident.
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <!-- Playlist Songs Section -->
+              <div id="playlistSongs" class="list-group">
+                <!-- Songs will be loaded here -->
+              </div>
+            </div>
+            <div class="col-md-4">
+              <div class="playlist-actions">
+                <!-- The Play All button reveals the lyrics controls -->
+                <button class="btn btn-outline-primary w-100 mb-2" onclick="playAll()">
+                  ▶ Play All
+                </button>
+                <button class="btn btn-outline-primary w-100 mb-2" onclick="playNextSong()">
+                  ▶ ▶ Play Next
+                </button>
+                <button class="btn btn-outline-primary w-100 mb-2" onclick="pauseMezmur()">
+                  ⏸ Pause
+                </button>
+                <button class="btn btn-outline-success w-100 mb-2"
+                        data-bs-toggle="modal"
+                        data-bs-target="#sharePlaylistModal">
+                  📤 Share
+                </button>
+                <textarea class="form-control mb-2" id="playlistDescription" placeholder="Add spiritual reflections..."></textarea>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bootstrap 5 Bundle JS (includes Popper) -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.0/dist/js/bootstrap.bundle.min.js"></script>
+  
+  <script>
+    // Simulated function to play all songs and reveal the lyrics controls.
+    function playAll() {
+      console.log('Playing all songs...');
+      const lyricsControls = document.getElementById('lyricsControls');
+      if (lyricsControls.classList.contains('d-none')) {
+        lyricsControls.classList.remove('d-none');
+      }
+      // Add your logic for playing songs here.
+    }
+
+    // Simulated function to play the next song.
+    function playNextSong() {
+      console.log('Playing the next song...');
+      // Add your logic for playing the next song.
+    }
+
+    // Simulated function to pause/stop playing.
+    function pauseMezmur() {
+      console.log('Pausing/stopping the song...');
+      // Add your logic to pause or stop playback.
+    }
+
+    // When the playlist modal is closed, stop the song and hide lyrics controls again.
+    var playlistModal = document.getElementById('playlistModal');
+    playlistModal.addEventListener('hidden.bs.modal', function() {
+      console.log('Playlist modal closed. Stopping song and hiding lyrics controls.');
+      // Stop the song.
+      pauseMezmur();
+      // Hide the lyrics controls.
+      var lyricsControls = document.getElementById('lyricsControls');
+      if (!lyricsControls.classList.contains('d-none')) {
+        lyricsControls.classList.add('d-none');
+      }
+    }
+    );
+  </script>
+</body>
+</html>
+
+    
