@@ -25,12 +25,12 @@ from flask import jsonify
 
 app = Flask(__name__)
 
-#pp_parent_folder = r'C:\\Users\\selon\\Documents\\Bete Christian\\Mezmur'
+pp_parent_folder = r'C:\\Users\\selon\\Documents\\Bete Christian\\Mezmur'
 sundayClassPP = r'C:\\Users\\selon\\Documents\\Bete Christian\\Lecture'
 #pp_parent_folder = r'C:/Users/MulleTec001/OneDrive/Documents/flask/teaching-assistance/flask_package/pp'
 #pp_parent_folder = r'C:/Users/selon/Documents/Bete Christian/Mezmur'
 #pp_parent_folder = r'/python-docker/flask_package/doc/pp'
-pp_parent_folder = r'flask_package/doc/pp/'
+#pp_parent_folder = r'flask_package/doc/pp/'
 audio_folder = r'flask_package/static/audio/'
 
 #sqlite3
@@ -547,11 +547,21 @@ def delete (id):
 def update (id):
     #print(id)
     mezdata = db.get_selected_data(id) #Getting the selected row from db database
-    #print("id " + str(mezdata[0]))
-    #print("Title " + str(mezdata[1]))
-    #print("Titleen " + str(mezdata[2]))
-    #print("Azmach " + str(mezdata[3]))
+    print("id " + str(mezdata[0]))
+    print("Title " + str(mezdata[1]))
+    print("Titleen " + str(mezdata[2]))
+    print("Azmach " + str(mezdata[3]))
     print("Azmachen" + str(mezdata[4]))
+    print("number5 " + str(mezdata[5]))
+    print("number6 " + str(mezdata[6]))
+    print("number7 " + str(mezdata[7]))
+    print("number8 " + str(mezdata[8]))
+    print("number9 " + str(mezdata[9]))
+    print("number10 " + str(mezdata[10]))
+    print("number11 " + str(mezdata[11]))
+    print("number12 " + str(mezdata[12]))
+    print("number13 " + str(mezdata[13]))
+    print("number14 " + str(mezdata[14]))
     
     #variable to be only passed or (updated and passed)
     latin_text = mezdata[4] 
@@ -605,6 +615,9 @@ def pushupdate():
         geez_text = rq.form.get("geez_text")
         alpha_text = rq.form.get("alpha_text")
         engTrans = rq.form.get("engTrans")
+        timed_geez = rq.form.get("timed-geez")
+        timed_latin = rq.form.get("timed-latin")
+        timed_english = rq.form.get("timed-english")
 
         # Update the mezmur details in the database.
         db.set_title(title, mezmur_id)
@@ -664,40 +677,44 @@ def pushupdate():
                            tags=db.get_taglist(),
                            form=form)
     
-@app.route('/add_mezmur', methods=['GET', 'POST'])
+@app.route('/add_mezmur', methods=['POST'])
 def add_mezmur():
     if rq.method == 'POST':
-        title = rq.form.get("title")
-        geez_text = rq.form.get("geez_text")
-        alpha_text = rq.form.get("alpha_text")
-        engTrans = rq.form.get("engTrans")
-        PPFile = "Direct entry"
-        audioFile = rq.files.get("file")
-
-        # Handle the file if needed
-        # if file:
-        #     filename = secure_filename(file.filename)
-        #     file.save(os.path.join('uploads', filename))
-        print("Title" + str(title))
-        print("geez_text" + str(geez_text))
-        print("alpha_text" + str(alpha_text))
-        print("engTrans" + str(engTrans))
-
         try:
-            db.mv_database(title,geez_text,alpha_text,engTrans,PPFile,audioFile,"NA","NA","NA")
-        except Exception as e:
-            return str(e)
+            # ... your existing code to get form data ...
+            title = rq.form.get("title")
+            titleen = rq.form.get("titleen") # Added titleen
+            geez_text = rq.form.get("geez_text")
+            alpha_text = rq.form.get("alpha_text")
+            engTrans = rq.form.get("engTrans")
+            timed_geez = rq.form.get("timed-geez")
+            timed_latin = rq.form.get("timed-latin")
+            timed_english = rq.form.get("timed-english")
+            selected_tags = rq.form.getlist('selected_tags') # Get selected tags
+            
+            # Handle file upload (as before)
+            audioFile = rq.files.get("file")
+            if audioFile and allowed_file(audioFile.filename):
+                filename = secure_filename(audioFile.filename)
+                filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+                audioFile.save(filepath)
+                audio_filepath = filepath
+            else:
+                audio_filepath = None
 
-    return render_template("mezmur.html", 
-                            latin_text=changealphabet.geez_to_latin(geez_text), 
-                            lg_text = googletransfun.check_language_type(geez_text), 
-                            geez_text_t = geez_text, 
-                            translated_text = googletransfun.translate_tig_eng(geez_text),
-                            files = os.listdir(pp_parent_folder), 
-                            rows= db.get_data(),
-                            mez_tags = db.get_allMezTags(),
-                            tags=db.get_taglist()
-                           )
+            # Call your database function
+            result = db.add_mezmur(title, titleen, geez_text, alpha_text, engTrans, timed_geez, timed_latin, timed_english, audio_filepath, selected_tags)
+
+            if isinstance(result, str) and result.startswith("Database error:"):
+                return jsonify({'error': result}), 500
+            else:
+                return jsonify({'message': 'Mezmur added successfully'}), 201  # JSON success response
+
+        except Exception as e:
+            app.logger.exception(f"Error in add_mezmur: {e}")
+            return jsonify({'error': 'An unexpected error occurred'}), 500
+
+    return jsonify({'error': 'Invalid request method'}), 405  # Handle non-POST requests
         
 @app.route('/selectedmez/<id>')
 def selected(id):
@@ -726,26 +743,53 @@ def search():
     #Render the sarch results template, passing in the search term and results
     return render_template("mezmur.html",files = os.listdir(pp_parent_folder), search_term=search_term, rows= results)
 
-#Add Tag to the list 
-@app.route('/add_tag', methods=['GET', 'POST'])
+
+@app.route('/add_tag', methods=['POST'])
 def add_tag():
+    if rq.method == 'POST':
+        tag_name = rq.form.get('tag_name').strip().lower()
+        if not tag_name:
+            return jsonify({'error': 'Tag name cannot be empty'}), 400
+
+        if db.tag_exists(tag_name):
+            return jsonify({'error': 'Tag already exists'}), 409
+
+        db.add_tag(tag_name)
+        return jsonify({'message': 'Tag added successfully', 'tag': tag_name}), 201
+
+    return jsonify({'error': 'Invalid request method'}), 405
+
+#Add tag to list through form
+@app.route('/add_tag_form', methods=['GET', 'POST'])
+def add_tag_form():
     if rq.method == 'POST':
         tag_name = rq.form.get('name')
         db.add_tags(tag_name)
-        return redirect(url_for('add_tag'))
-    return render_template("tags.html", tags=db.get_taglist())
-    
+        return redirect(url_for('add_tag_form'))
+    return render_template("tags.html", tags=db.get_taglist()) 
+ 
+#Delete_tag  
+@app.route('/delete_tag/<int:tag_id>', methods=['POST'])
+def delete_tag(tag_id):
+    try:
+        db.delete_tag(tag_id)  # Call your database function to delete the tag
+        flash('Tag deleted successfully!', 'success')
+        return redirect(url_for('add_tag_form'))  # Redirect to the tag management page
+    except Exception as e:
+        flash(f'Error deleting tag: {e}', 'error')
+        return redirect(url_for('add_tag_form'))
+
 #Attach a Tag to a Mezmur
 @app.route('/add_tag_to_mezmur/<int:mez_id>', methods=['GET', 'POST'])
 def add_tag_to_mez(mez_id):
-    tag_name = request.form.get('name')
+    tag_name = rq.form.get('name')
     db.add_tags_to_mez(mez_id,tag_name)
     return redirect(url_for('mezmur'))
 
 #getting built #Telegram
 @app.route('/send_message', methods=['POST'])
 def send_message():
-    data = request.json
+    data = rq.json
     chat_id = data.get('chat_id')
     message = data.get('message')
     
@@ -754,7 +798,7 @@ def send_message():
         'text': message
     }
     
-    response = requests.post(TELEGRAM_API_URL, json=payload)
+    response = rq.post(TELEGRAM_API_URL, json=payload)
     return response.json()
 ################################PlayList###################
 # Create a playlist
@@ -812,11 +856,16 @@ def get_playlist(playlist_id):
             song_data = db.get_selected_data(song_rel.song_id)
             if song_data:
                 songs.append({
-                    'id': song_rel.song_id,
-                    'title': song_data[1],  # Adjust index based on your SQLite schema
-                    'lyrics': song_data[3],
-                    'audio_url': url_for('audio', id=song_rel.song_id, _external=True)  # Ensure proper URL format
-        })
+                    'id': song_data[0],
+                    'title': song_data[1],
+                    'timed_geez': song_data[6],
+                    'timed_latin': song_data[7],
+                    'timed_english': song_data[8],
+                    'azmach': song_data[3],
+                    'azmachen': song_data[4],
+                    'engTrans': song_data[5],
+                    'audio_url': url_for('audio', id=song_data[0], _external=True)
+                })
 
         return jsonify({
             'id': playlist.id,

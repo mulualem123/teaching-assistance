@@ -100,3 +100,18 @@ document.addEventListener('click', (e) => {
             audioController.lyricsElement.style.display === 'none' ? 'block' : 'none';
     }
 });
+
+
+// Updated initialization
+document.addEventListener('DOMContentLoaded', () => {
+    // Initialize components only when needed
+    playlistModal = new bootstrap.Modal(document.getElementById('playlistModal'));
+    
+    playlistModal._element.addEventListener('shown.bs.modal', () => {
+        // Now we're sure modal DOM elements exist
+        initMasonry();
+        setupEventListeners();
+    });
+
+    loadInitialPlaylists();
+});

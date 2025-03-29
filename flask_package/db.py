@@ -1,6 +1,7 @@
 import sqlite3
 import click
 from flask import current_app, g
+from flask.cli import with_appcontext 
 
 def get_db():
     if 'db' not in g:
@@ -28,16 +29,65 @@ def add_data(data):
     db.execute('INSERT INTO data (data) VALUES (?)', (data,)) #data is the data that is being added
     db.commit()
 
-#Add mezmur in geez in database.
-def mv_database(title,geez_text,latin_text,engTrans,filename,audio,cat1,cat2,cat3):
+#Add mezmur into database from files (PP). 
+def mv_database(title, geez_text, latin_text, engTrans, filename, audio, cat1, cat2, cat3,
+               timed_geez=None, timed_latin=None, timed_english=None):
     db_ob = get_db()
-    sql = 'Insert INTO mezmur (title, azmach,azmachen,engTrans,dir,audio_file,cat1,cat2,cat3) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
-    values = (title,geez_text, latin_text, engTrans, filename, audio, cat1, cat2, cat3)
+    sql = '''INSERT INTO mezmur 
+            (title, azmach, azmachen, engTrans, dir, audio_file, cat1, cat2, cat3,
+             timed_geez, timed_latin, timed_english) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'''
+    values = (title, geez_text, latin_text, engTrans, filename, audio, cat1, cat2, cat3,
+              timed_geez, timed_latin, timed_english)
     db_ob.execute(sql, values)
     db_ob.commit()
-    #db_ob.close()
-    return 'mezmur added successfuly'
+    return 'Mezmur added successfully with timed lyrics support'
 
+#Add a new Mezmur to database. 
+def add_mezmur(title, titleen, geez_text, alpha_text, engTrans, timed_geez, timed_latin, timed_english, audioFilepath, tags):
+    conn = get_db()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        INSERT INTO mezmur (title, titleen, azmach, azmachen, engTrans, timed_geez, timed_latin, timed_english, audio_file, dir, cat1, cat2, cat3)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """, (title, titleen, geez_text, alpha_text, engTrans, timed_geez, timed_latin, timed_english, audioFilepath, "NA", "NA", "NA", "NA"))
+
+    mezmur_id = cursor.lastrowid
+
+    # Add tags (assuming you have a mezmur_tags table)
+    update_mez_tags(tags, mezmur_id)
+    
+    conn.commit()
+    conn.close()
+
+# Add timed lyrics
+def set_timed_lyrics(m_id, geez=None, latin=None, english=None):
+    db_ob = get_db()
+    if geez:
+        db_ob.execute('UPDATE mezmur SET timed_geez = ? WHERE m_id = ?', (geez, m_id))
+    if latin:
+        db_ob.execute('UPDATE mezmur SET timed_latin = ? WHERE m_id = ?', (latin, m_id))
+    if english:
+        db_ob.execute('UPDATE mezmur SET timed_english = ? WHERE m_id = ?', (english, m_id))
+    db_ob.commit()
+    return "Timed lyrics updated"
+
+# Get timed lyrics
+def get_timed_lyrics(m_id, language):
+    db_ob = get_db()
+    column = {
+        'geez': 'timed_geez',
+        'latin': 'timed_latin',
+        'english': 'timed_english'
+    }.get(language, 'timed_geez')
+    
+    result = db_ob.execute(
+        f'SELECT {column} FROM mezmur WHERE m_id = ?',
+        (m_id,)
+    ).fetchone()
+    
+    return result[0] if result else None
 #Delete entry from the database
 def delete_data(id):
     db_ob = get_db()
@@ -103,6 +153,30 @@ def set_engTrans(engTrans, id):
     db_ob.execute(sql,values)
     db_ob.commit()
     return "updated!"
+
+def set_timed_geez(timed_geez, id):
+    db_ob = get_db()
+    sql = 'UPDATE mezmur SET timed_geez = ? where m_id = ?'
+    values = (timed_geez, id)
+    db_ob.execute(sql,values)
+    db_ob.commit()
+    return "timed_geez updated!"
+
+def set_timed_latin(timed_latin, id):
+    db_ob = get_db()
+    sql = 'UPDATE mezmur SET timed_latin = ? where m_id = ?'
+    values = (timed_latin, id)
+    db_ob.execute(sql,values)
+    db_ob.commit()
+    return "timed_latin updated!"
+
+def set_timed_english(timed_english, id):
+    db_ob = get_db()
+    sql = 'UPDATE mezmur SET timed_english = ? where m_id = ?'
+    values = (timed_english, id)
+    db_ob.execute(sql,values)
+    db_ob.commit()
+    return "timed_english updated!"
 
 def set_audio_file(audio_file, id):
     print("set_audio_file function called")
@@ -189,6 +263,28 @@ def add_tags(name):
     db_ob.execute(sql,values)
     db_ob.commit()
     return "added!"
+# ... other functions ...
+
+def add_tag(tag_name):
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("INSERT INTO tagList (tag) VALUES (?)", (tag_name,))
+    conn.commit()
+
+def tag_exists(tag_name):
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT 1 FROM tagList WHERE tag = ?", (tag_name,))
+    result = cursor.fetchone()
+    return result is not None
+
+# Delete tag
+def delete_tag(tag_id):
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM tagList WHERE t_id = ?", (tag_id,))
+    conn.commit()
+
 
 def add_tags_to_mez(m_id, tag_name):
     db_ob = get_db()
@@ -257,13 +353,17 @@ def get_script(command):
 def get_selected_data(id):
     db_ob = get_db()
     cursor = db_ob.cursor()
-    sql = 'SELECT * FROM mezmur where m_id = ?'
-    cursor.execute(sql,(id,))
-    data = cursor.fetchall()[0]
-    cursor.close()
-    return data
+    sql = '''SELECT 
+        m_id, title, titleen, azmach, azmachen, engTrans,
+        timed_geez, timed_latin, timed_english,
+        dir, audio_file, created, cat1, cat2, cat3 
+        FROM mezmur WHERE m_id = ?'''
+    cursor.execute(sql, (id,))
+    print("get_selected_data has been called")
+    return cursor.fetchone()
 
 @click.command('init-db')
+@with_appcontext
 def init_db_command():
     """Clear the exitsting data and create new tables"""
     init_db()

@@ -9,11 +9,13 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <!-- Custom CSS -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/stylesheet.css') }}">
-    <!-- Bootstrap CSS -->
-    <link href="https://stackpath.bootstrapcdn.com/bootstrap/5.3.0/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap CSS 
+    <link href="https://stackpath.bootstrapcdn.com/bootstrap/5.3.0/css/bootstrap.min.css" rel="stylesheet"> -->
 
-    <!-- Bootstrap Bundle with Popper -->
-    <script src="https://stackpath.bootstrapcdn.com/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
+    <!-- Bootstrap Bundle with Popper 
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script> -->
+
+    <script src="https://unpkg.com/imagesloaded@5/imagesloaded.pkgd.min.js"></script>
 
     <!--Icons-->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-icons/1.10.0/font/bootstrap-icons.min.css">
@@ -42,7 +44,7 @@
                             </div>
                         </div>
 
-                        <div class="tag-cloud">
+                        <!--<div class="tag-cloud">
                             <h6>🏷️ Popular Tags</h6>
                             {% for tag in tags %}
                             <div class="form-check">
@@ -52,12 +54,37 @@
                                 </label>
                             </div>
                             {% endfor %}
-                        </div>
+                        </div> -->
+                        
+                        <div class="tag-cloud">
+                            <h6>🏷️ Popular Tags 
+                                {% if current_user.is_authenticated and ('admin' in current_user.roles or 'mezmur_editor' in current_user.roles) %}
+                                <a href="/add_tag_form"> <i class="bi bi-arrow-bar-right"></i></a>
+                                {%endif%}
+                            </h6>
 
+                            <div class="tag-list">
+                                {% for tag in tags %}
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" value="{{ tag.tag }}" id="tag{{ loop.index }}">
+                                    <label class="form-check-label" for="tag{{ loop.index }}">
+                                        {{ tag.tag }}
+                                    </label>
+                                </div>
+                                {% endfor %}
+                            </div>
+                            {% if current_user.is_authenticated and ('admin' in current_user.roles or 'mezmur_editor' in current_user.roles) %}
+                            <form method="POST" action="/add_tag" class="add-tag-form">
+                                <input type="text" name="tag_name" placeholder="Add new tag">
+                                <button type="submit" class="btn btn-sm btn-outline-primary">+</button>
+                            </form>
+                            {% endif %}
+                        </div>
+                        
                     </div>
                 </div>
 
-                <!-- Main Content -->
+                <!-- Main Content -->                 
                 <div class="col-lg-9">
                     <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4" id="mezmurGrid">
                         {% for row in rows %}
@@ -106,7 +133,7 @@
                                             style="display: none;" 
                                             data-bs-toggle="modal" 
                                             data-bs-target="#mezmurModal{{ row[0] }}"></button>
-                        
+                                    <label class="preserve-line-breaks"> {{row[3]}}</label>
                                     <div class="tags mb-3">
                                         {% for tag in mez_tags if tag[1] == row[0] %}
                                         <span class="tag-pill">{{ tag[2] }}</span>
@@ -223,6 +250,14 @@
         </div>
     </div>
     <!-- Mobile Toggle Button -->
+    <button id="addMezmurFAB" type="button" class="btn btn-primary btn-floating fab" data-bs-toggle="modal" data-bs-target="#addMezmurModal">
+        <i class="bi bi-plus"></i>  <!-- Plus icon from Bootstrap Icons -->
+      </button>
+      <!--Nav Filter
+    <a id="NavFilter"  class="btn btn-primary btn-floating fab" data-bs-toggle="modal" href="#searchInput">
+        <i class="bi bi-funnel"></i>
+    </a>-->
+      <!--Playlist-->
     <button class="btn btn-primary sidebar-toggle d-lg-none" 
             onclick="toggleSidebar()">
         <i class="bi bi-music-note-list"></i>
@@ -242,6 +277,10 @@
                         <div class="col-md-6">
                             <h6>🇪🇹 Ge'ez Lyrics</h6>
                             <p class="preserve-line-breaks">{{ row[3] }}</p>
+                        </div>
+                        <div class="col-md-6">
+                            <h6>GB Latin Phonetic Lyrics</h6>
+                            <p class="preserve-line-breaks">{{ row[4] }}</p>
                         </div>
                         <div class="col-md-6">
                             <h6>🇬🇧 English Translation</h6>
@@ -286,7 +325,8 @@
         </div>
     </div>
     <!-- Playlist Modal -->
-    <div class="modal fade" id="playlistModal" tabindex="-1" aria-hidden="true">
+    <div class="modal fade" id="playlistModal" tabindex="-1" >
+    <!--<div class="modal fade" id="playlistModal" tabindex="-1" aria-hidden="true">-->
       <div class="modal-dialog modal-lg">
         <div class="modal-content">
           <div class="modal-header bg-light">
@@ -313,7 +353,7 @@
                             data-bs-target="#multiCollapseExample2" 
                             aria-expanded="false" 
                             aria-controls="multiCollapseExample2">
-                      Fonetic
+                      Phonetic
                     </button>
                     <button class="btn btn-primary" 
                             type="button" 
@@ -333,26 +373,21 @@
                     </button>
                   </p>
                   <div class="col">
+                    <!-- Updated HTML -->
                     <div class="row">
-                      <div class="collapse multi-collapse" id="multiCollapseExample1">
-                        <div class="card card-body" id="colapMezmur">
-                          Mezmur
+                        <div class="collapse multi-collapse show" id="multiCollapseExample1">
+                            <div class="card card-body" id="colapGeez"></div>
                         </div>
-                      </div>
                     </div>
                     <div class="row">
-                      <div class="collapse multi-collapse" id="multiCollapseExample2">
-                        <div class="card card-body">
-                          Mezmur
+                        <div class="collapse multi-collapse" id="multiCollapseExample2">
+                            <div class="card card-body" id="colapLatin"></div>
                         </div>
-                      </div>
                     </div>
                     <div class="row">
-                      <div class="collapse multi-collapse" id="multiCollapseExample3">
-                        <div class="card card-body">
-                          Mezmur
+                        <div class="collapse multi-collapse" id="multiCollapseExample3">
+                            <div class="card card-body" id="colapEnglish"></div> <!-- Fixed from colapTranslation -->
                         </div>
-                      </div>
                     </div>
                   </div>
                 </div>
@@ -393,7 +428,7 @@
                     <div class="mb-3">
                         <label class="form-label">Share Link</label>
                         <div class="input-group">
-                            <input type="text" class="form-control" id="shareLink" readonly>
+                            <input type="text" class="form-control" id="shareLink" title="copy link" readonly>
                             <button class="btn btn-outline-secondary" onclick="copyShareLink()">
                                 📋
                             </button>
@@ -414,27 +449,83 @@
             </div>
         </div>
     </div>
+
+<!-- Add New Mezmur Modal -->
+<div class="modal fade" id="addMezmurModal" tabindex="-1" aria-labelledby="addMezmurModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="addMezmurModalLabel">Add New Mezmur</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="addMezmurForm" method="POST" action="/add_mezmur" enctype="multipart/form-data">
+                    <div class="mb-3">
+                        <label for="title" class="form-label">Title (Geez):</label>
+                        <input type="text" class="form-control" id="title" name="title" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="geez_text" class="form-label">Lyrics (Geez):</label>
+                        <textarea class="form-control" id="geez_text" name="geez_text" rows="5" required></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label for="alpha_text" class="form-label">Lyrics (Latin):</label>
+                        <textarea class="form-control" id="alpha_text" name="alpha_text" rows="5"></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label for="engTrans" class="form-label">Translation (English):</label>
+                        <textarea class="form-control" id="engTrans" name="engTrans" rows="5"></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label for="timed-geez" class="form-label">Timed Lyrics (Geez):</label>
+                        <textarea class="form-control" id="timed-geez" name="timed-geez" rows="5"></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label for="timed-latin" class="form-label">Timed Lyrics (Latin):</label>
+                        <textarea class="form-control" id="timed-latin" name="timed-latin" rows="5"></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label for="timed-english" class="form-label">Timed Lyrics (English):</label>
+                        <textarea class="form-control" id="timed-english" name="timed-english" rows="5"></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label for="file" class="form-label">Audio File (Optional):</label>
+                        <input type="file" class="form-control" id="file" name="file">
+                    </div>
+                    <div class="mb-3">
+                        <label for="recorded_audio" class="form-label">Record Audio:</label>
+                        <div class="mb-2">
+                            <button type="button" class="btn btn-primary me-2" id="startAudioRecBtn">Start Recording</button>
+                            <button type="button" class="btn btn-danger" id="stopAudioRecBtn" disabled>Stop Recording</button>
+                        </div>
+                        <audio id="audioPlayback" controls style="display: none; margin-top: 10px;"></audio>
+                        <input type="hidden" name="recorded_audio" id="recordedAudio">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Tags</label>
+                            {% for tag in tags %}
+                                <div class="form-check">
+                                    <input type="checkbox" class="form-check-input" name="selected_tags" 
+                                           value="{{ tag.t_id }}" id="tag_{{ loop.index }}">
+                                    <label class="form-check-label" for="tag_{{ loop.index }}">{{ tag.tag }}</label>
+                                  </div>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <button type="submit" class="btn btn-success">Add Mezmur</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
     <!-- Scripts -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/masonry/4.2.2/masonry.pkgd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
     <script src="{{ url_for('static', filename='js/mezmur.js')}}"></script>
+    <script src="{{ url_for('static', filename='js/audio.js')}}"></script>
     <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            // Initialize Masonry
-            const masonry = new Masonry('#mezmurGrid', {
-                itemSelector: '.mezmur-card-container',
-                columnWidth: '.mezmur-card-container',
-                percentPosition: true
-            });
-            
-            // Initial filter
-            filterMezmurs();
-            
-            // Re-layout Masonry after images load
-            imagesLoaded('#mezmurGrid', function() {
-                masonry.layout();
-            });
-        });
+       
     </script>
 
 </body>

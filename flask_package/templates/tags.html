@@ -1,13 +1,23 @@
 {%include 'navbar.html'%}
 
-<form method="POST" action="/add_tag">
+<h1>Manage Tags</h1>
+
+<form method="POST" action="/add_tag_form">
     <input type="text" name="name" value="" placeholder="Tag Name" required>
     <button type="submit"> Add Tag </button>
 </form>
 
-{% for tag in tags %}
-    <li>{{tag[0]}}</li>
-    <li>{{tag[1]}}</li>
-{% endfor %}
+
+<ul>
+    {% for tag in tags %}
+        <li>{{tag[0]}}</li>
+        <li>
+            {{ tag.tag }}
+            <form method="POST" action="{{ url_for('delete_tag', tag_id=tag.t_id) }}">
+                <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+            </form>
+        </li>
+    {% endfor %}
+</ul>
 
 

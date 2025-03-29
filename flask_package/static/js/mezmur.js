@@ -6,6 +6,7 @@ let currentPlayer = {
     audioElement: null,
     songs: []
 };
+let masonry = null;
 
 // Toast System
 function showToast(message, type = 'info') {
@@ -17,15 +18,17 @@ function showToast(message, type = 'info') {
 }
 
 // Masonry Initialization
+// Update initMasonry function
 function initMasonry() {
-    return new Masonry('#mezmurGrid', {
+    masonry = new Masonry('#mezmurGrid', {
         itemSelector: '.mezmur-card-container',
-        columnWidth: '.col',
+        columnWidth: '.card',
         percentPosition: true,
         gutter: 24,
         transitionDuration: '0.3s',
         horizontalOrder: true
     });
+    return masonry;
 }
 
 // Filter Functionality
@@ -34,7 +37,6 @@ function filterMezmurs() {
     const selectedTags = Array.from(document.querySelectorAll('.tag-cloud input:checked'))
         .map(cb => cb.value.trim().toLowerCase());
     const operator = document.querySelector('input[name="operator"]:checked').id;
-    const masonry = Masonry.data(document.querySelector('#mezmurGrid'));
 
     document.querySelectorAll('.mezmur-card-container').forEach(card => {
         const title = card.querySelector('.card-title').textContent.toLowerCase();
@@ -52,10 +54,11 @@ function filterMezmurs() {
         card.classList.toggle('filtered-out', !(matchesSearch && matchesTags));
     });
 
-    setTimeout(() => {
+    // Force Masonry update
+    if (masonry) {
         masonry.reloadItems();
         masonry.layout();
-    }, 300);
+    }
 }
 
 // Playlist Management
@@ -64,13 +67,16 @@ function toggleSidebar() {
     document.querySelector('.playlist-sidebar').classList.toggle('active');
 }
 
-
 async function loadPlaylist(playlistId, forceReload = false) {
+
     try {
         const response = await fetch(`/api/playlists/${playlistId}${forceReload ? '?t=' + Date.now() : ''}`);
         if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
 
         const playlist = await response.json();
+        if (!playlist?.songs) {
+            throw new Error('Invalid playlist data received from server');
+        }
         const songsContainer = document.getElementById('playlistSongs');
         
         // Update UI
@@ -97,7 +103,11 @@ async function loadPlaylist(playlistId, forceReload = false) {
         };
 
         playlistModal.show();
-
+        playlistModal._element.addEventListener('shown.bs.modal', () => {
+            if (masonry) {
+                masonry.layout();
+            }
+        });
     } catch (error) {
         showToast(`Failed to load playlist: ${error.message}`, 'error');
     }
@@ -184,7 +194,6 @@ async function addToPlaylist(event, mezmurId, playlistId) {
     }
 }
 
-
 async function loadInitialPlaylists() {
     try {
         const response = await fetch('/api/playlists');
@@ -250,58 +259,91 @@ function refreshPlaylistSidebar(playlists) {
 }
 // Play All Functionality
 function playAll() {
-    if (currentPlayer.songs.length === 0) {
+    console.log('Play All clicked');
+    console.log('Lyrics containers exist?', 
+        !!document.getElementById('colapGeez'),
+        !!document.getElementById('colapLatin'),
+        !!document.getElementById('colapEnglish')
+    );
+    if (!currentPlayer.songs?.length) {
         showToast('No songs in this playlist', 'warning');
         return;
     }
 
-    // Stop any existing playback
+    // Clear previous audio
     if (currentPlayer.audioElement) {
         currentPlayer.audioElement.pause();
         currentPlayer.audioElement.remove();
     }
 
-    // Create new audio element
+    // Initialize audio
     currentPlayer.audioElement = new Audio();
+    currentPlayer.audioElement.preload = "auto";
     currentPlayer.audioElement.controls = true;
     currentPlayer.audioElement.style.width = '100%';
-    
-    // Add player to modal
-    const playerContainer = document.getElementById('playlistSongs');
-    playerContainer.prepend(currentPlayer.audioElement);
-    
-    // Start playback
+
+    // Error handling
+    currentPlayer.audioElement.addEventListener('error', (e) => {
+        showToast(`Audio error: ${e.target.error.message}`, 'error');
+    });
+
+    document.getElementById('playlistSongs').prepend(currentPlayer.audioElement);
     currentPlayer.currentIndex = 0;
     playNextSong();
 }
-//Play Next Mezmur
-function playNextSong() {
-    if (currentPlayer.currentIndex >= currentPlayer.songs.length) {
-        showToast('Playlist playback completed', 'success');
-        return;
-    }
+// function playAll() {
+//     if (currentPlayer.songs.length === 0) {
+//         showToast('No songs in this playlist', 'warning');
+//         return;
+//     }
 
-    const song = currentPlayer.songs[currentPlayer.currentIndex];
-    currentPlayer.audioElement.src = song.audio_url;
-    // Reveal the lyrics controls.
-    const lyricsControls = document.getElementById('lyricsControls');
-    if (lyricsControls.classList.contains('d-none')) {
-       lyricsControls.classList.remove('d-none');
-    } 
-    //Display lyrics of mezmur        
-    document.getElementById("colapMezmur").innerText = song.lyrics || "Lyrics not available.";
-    // Update UI
-    highlightCurrentSong(currentPlayer.currentIndex);
+//     // Stop any existing playback
+//     if (currentPlayer.audioElement) {
+//         currentPlayer.audioElement.pause();
+//         currentPlayer.audioElement.remove();
+//     }
+
+//     // Create new audio element
+//     currentPlayer.audioElement = new Audio();
+//     currentPlayer.audioElement.controls = true;
+//     currentPlayer.audioElement.style.width = '100%';
     
-    currentPlayer.audioElement.play();
+//     // Add player to modal
+//     const playerContainer = document.getElementById('playlistSongs');
+//     playerContainer.prepend(currentPlayer.audioElement);
     
-    // Set up next song
-    currentPlayer.audioElement.onended = () => {
-        currentPlayer.currentIndex++;
-        playNextSong();
-    };
-    
-}
+//     // Start playback
+//     currentPlayer.currentIndex = 0;
+//     playNextSong();
+// }
+//Play Next Mezmur
+// function playNextSong() {
+    // if (currentPlayer.currentIndex >= currentPlayer.songs.length) {
+        // showToast('Playlist playback completed', 'success');
+        // return;
+    // }
+// 
+    // const song = currentPlayer.songs[currentPlayer.currentIndex];
+    // currentPlayer.audioElement.src = song.audio_url;
+    ////Reveal the lyrics controls.
+    // const lyricsControls = document.getElementById('lyricsControls');
+    // if (lyricsControls.classList.contains('d-none')) {
+    //    lyricsControls.classList.remove('d-none');
+    // } 
+    ////Display lyrics of mezmur        
+    // document.getElementById("colapGeez").innerText = song.lyrics || "Lyrics not available.";
+    ////Update UI
+    // highlightCurrentSong(currentPlayer.currentIndex);
+    // 
+    // currentPlayer.audioElement.play();
+    // 
+    ////Set up next song
+    // currentPlayer.audioElement.onended = () => {
+        // currentPlayer.currentIndex++;
+        // playNextSong();
+    // };
+    // 
+// }
 function highlightCurrentSong(index) {
     document.querySelectorAll('#playlistSongs .list-group-item').forEach((item, i) => {
         item.classList.toggle('active', i === index);
@@ -335,6 +377,146 @@ function shareOnWhatsApp() {
     const url = encodeURIComponent(generateShareLink(currentPlayer.playlistId));
     const text = encodeURIComponent(`Check out this spiritual playlist: ${document.getElementById('playlistName').textContent} - ${url}`);
     window.open(`https://api.whatsapp.com/send?text=${text}`, '_blank');
+}
+
+// Lyrics Highlighting System
+let currentLyrics = {
+    geez: [],
+    latin: [],
+    english: []
+};
+
+function parseTimedLyrics(lyrics) {
+    if (!lyrics) return [];
+    return lyrics.split('\n').filter(line => line.trim()).map(line => {
+        const match = line.match(/^\[(\d+:\d+)\]\s*(.*)/);
+        return match ? {
+            time: convertToSeconds(match[1]),
+            text: match[2]
+        } : { time: 0, text: line };
+    });
+}
+
+function convertToSeconds(timeString) {
+    const [minutes, seconds] = timeString.split(':').map(Number);
+    return minutes * 60 + seconds;
+}
+
+function displayLyrics(lyrics, containerId) {
+    const container = document.getElementById(containerId);
+    
+    if (!container) {
+        console.error(`Lyrics container not found: #${containerId}`);
+        return;
+    }
+
+    try {
+        container.innerHTML = lyrics.map(line => 
+            `<div class="lyric-line" data-time="${line.time}">${line.text}</div>`
+        ).join('');
+    } catch (error) {
+        console.error('Error rendering lyrics:', error);
+        showToast('Failed to display lyrics', 'error');
+    }
+}
+
+function highlightLyrics(currentTime) {
+    ['geez', 'latin', 'english'].forEach(lang => {
+        const container = document.getElementById(`colap${lang.charAt(0).toUpperCase() + lang.slice(1)}`);
+        if (!container) return;
+
+        const lines = container.querySelectorAll('.lyric-line');
+        let activeLine = null;
+
+        lines.forEach(line => {
+            const lineTime = parseFloat(line.dataset.time) || 0;
+            const nextTime = line.nextElementSibling?.dataset.time || Infinity;
+            
+            line.classList.toggle('active', 
+                currentTime >= lineTime && 
+                currentTime < nextTime
+            );
+            
+            if (line.classList.contains('active')) {
+                activeLine = line;
+            }
+        });
+
+        if (activeLine) {
+            activeLine.scrollIntoView({
+                behavior: 'smooth',
+                block: 'center',
+                inline: 'nearest'
+            });
+        }
+    });
+}
+
+// Modified playNextSong function
+async function playNextSong() {
+    try {
+        if (currentPlayer.currentIndex >= currentPlayer.songs.length) {
+            showToast('Playlist playback completed', 'success');
+            return;
+        }
+
+        const song = currentPlayer.songs[currentPlayer.currentIndex];
+        if (!song) throw new Error('Invalid song data');
+
+        // Initialize lyrics with fallbacks
+        currentLyrics = {
+            geez: parseTimedLyrics(song.timed_geez || ''),
+            latin: parseTimedLyrics(song.timed_latin || ''),
+            english: parseTimedLyrics(song.timed_english || '')
+        };
+
+        // Clear previous lyrics
+        ['geez', 'latin', 'english'].forEach(lang => {
+            const container = document.getElementById(`colap${lang.charAt(0).toUpperCase() + lang.slice(1)}`);
+            if (container) container.innerHTML = '';
+        });
+
+        // Display lyrics to CORRECT containers
+        displayLyrics(currentLyrics.geez, 'colapGeez');
+        displayLyrics(currentLyrics.latin, 'colapLatin');
+        displayLyrics(currentLyrics.english, 'colapEnglish'); // Fixed ID
+
+        // Display lyrics
+        Object.entries(currentLyrics).forEach(([lang, lines]) => {
+            displayLyrics(lines, `colap${lang.charAt(0).toUpperCase() + lang.slice(1)}`);
+        });
+
+        // Initialize audio
+        currentPlayer.audioElement.src = song.audio_url;
+        
+        // Wait for audio to load
+        await new Promise((resolve, reject) => {
+            currentPlayer.audioElement.addEventListener('loadedmetadata', resolve);
+            currentPlayer.audioElement.addEventListener('error', reject);
+        });
+
+        // Start playback
+        await currentPlayer.audioElement.play();
+        
+        // Set up highlighting
+        currentPlayer.audioElement.addEventListener('timeupdate', () => {
+            highlightLyrics(currentPlayer.audioElement.currentTime);
+        });
+
+        // Update UI
+        highlightCurrentSong(currentPlayer.currentIndex);
+        document.getElementById('lyricsControls').classList.remove('d-none');
+
+        // Handle track ending
+        currentPlayer.audioElement.onended = () => {
+            currentPlayer.currentIndex++;
+            playNextSong();
+        };
+
+    } catch (error) {
+        showToast(`Playback error: ${error.message}`, 'error');
+        console.error('Playback Error:', error);
+    }
 }
 // Event Handlers
 function setupEventListeners() {
@@ -389,22 +571,40 @@ function setupEventListeners() {
     document.getElementById
 }
 
+// ... (rest of your mezmur.js code) ...
+
 // Initialization
 document.addEventListener('DOMContentLoaded', () => {
     // Initialize components
     playlistModal = new bootstrap.Modal(document.getElementById('playlistModal'));
-    //const masonry = initMasonry();
-    
-    // Setup event listeners
     setupEventListeners();
+    // Setup event listeners
+    playlistModal._element.addEventListener('shown.bs.modal', () => {
+        // Now we're sure modal DOM elements exist
+        initMasonry();
+        setupEventListeners();
+    });
+
+    document.addEventListener('show.bs.modal', (event) => {
+        const openModals = document.querySelectorAll('.modal.show');
+        openModals.forEach(modal => {
+            if (modal !== event.target) {
+                bootstrap.Modal.getInstance(modal).hide();
+            }
+        });
+    });
+
     loadInitialPlaylists()
     // Initial setup
-    filterMezmurs();
-    window.addEventListener('resize', () => masonry.layout());
+    //filterMezmurs(); // Removed this line
     window.addEventListener('resize', () => {
+        if (masonry) masonry.layout();
         if(window.innerWidth >= 1200) {
             document.querySelector('.playlist-sidebar').classList.remove('active');
         }
+    });
+    window.addEventListener('resize', () => {
+        if (masonry) masonry.layout();
     });
 
     var dropdowns = document.querySelectorAll('.dropdown-toggle');
@@ -420,4 +620,100 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
+    
+    // Initialize modals
+    const mezmurModals = document.querySelectorAll('.mezmur-modal');
+    mezmurModals.forEach(modal => {
+        const audio = modal.querySelector('.audio-player');
+        const lyricsContainer = modal.querySelector('.lyrics-container');
+        
+        modal.addEventListener('shown.bs.modal', () => {
+            setupLyricsHighlighting(audio, lyricsContainer);
+        });
+
+        modal.addEventListener('hidden.bs.modal', () => {
+            if (audio) {
+                audio.pause();
+                audio.currentTime = 0;
+            }
+        });
+    });
+    // Initialize Masonry after images load
+    imagesLoaded('#mezmurGrid', function() {
+        initMasonry();
+        filterMezmurs(); // Initial filter
+        window.dispatchEvent(new Event('resize')); // Trigger initial layout
+    });
+
+});
+
+// Add mezmur model handler
+document.getElementById('addMezmurForm').addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const formData = new FormData(event.target);
+    console.log("1")
+    try {
+        const response = await fetch('/add_mezmur', {
+            method: 'POST',
+            body: formData
+        });
+        console.log("2")
+        if (!response.ok) {
+            const errorData = await response.json();
+            showToast(`Error: ${errorData.error || 'Failed to add Mezmur'}`, 'error');
+            return; // Stop further execution if there's an error
+        }
+        console.log("3")
+        const data = await response.json();
+        console.log("4")
+        showToast(data.message, 'success');
+        // Optionally, reload the page or update the mezmur list
+        console.log("5")
+        event.target.reset(); // Clear the form
+        console.log("6")
+        document.getElementById('addMezmurModal').style.display = 'none';// Close the modal
+        location.reload();
+    } catch (error) {
+        showToast(`Error: ${error.message}`, 'error');
+        console.error('Error adding Mezmur:', error);
+    }
+});
+
+// ... other JavaScript code ...
+
+document.querySelector('.add-tag-form').addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const formData = new FormData(event.target);
+    try {
+        const response = await fetch('/add_tag', {
+            method: 'POST',
+            body: formData
+        });
+        if (!response.ok) {
+            const errorData = await response.json();
+            showToast(`Error: ${errorData.error}`, 'error');
+            return;
+        }
+        const data = await response.json();
+        showToast(data.message, 'success');
+        // Update the UI to show the new tag (you'll need to implement this part)
+        // For example, you could append a new <span> element to the tag list
+        const newTagSpan = document.createElement('span');
+        newTagSpan.className = 'tag';
+        newTagSpan.textContent = data.tag;
+        document.querySelector('.tag-list').appendChild(newTagSpan);
+        event.target.reset(); // Clear the form
+        location.reload();
+    } catch (error) {
+        showToast(`Error: ${error.message}`, 'error');
+        console.error('Error adding tag:', error);
+    }
+});
+
+// ... rest of your JavaScript code ...
+
+// Add at the end of mezmur.js
+window.addEventListener('error', function(e) {
+    showToast(`Unexpected error: ${e.message}`, 'error');
+    console.error('Global Error:', e);
 });
