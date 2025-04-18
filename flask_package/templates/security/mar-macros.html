@@ -1,0 +1,40 @@
+<!--{% macro render_field(field, class="", placeholder="", autofocus=False, **extra_kwargs) %}
+  <div class="mb-3">
+    {{ field(class=class, placeholder=placeholder, autofocus=autofocus, **extra_kwargs)|safe }}
+    {% if field.errors %}
+      <div class="alert alert-danger">
+        {% for error in field.errors %}
+          {{ error }}<br>
+        {% endfor %}
+      </div>
+    {% endif %}
+  </div>
+{% endmacro %}
+
+{% macro render_field_with_errors(field, class="", placeholder="", autofocus=False, **extra_kwargs) %}
+  {{ render_field(field, class=class, placeholder=placeholder, autofocus=autofocus, **extra_kwargs) }}
+{% endmacro %}
+
+{% macro render_field_errors(field) %}
+  <div class="fs-div" id="{{ field.id if field else 'fs-field' }}">
+    {% if field and field.errors %}
+      <ul>
+        {% for error in field.errors %}<li class="fs-error-msg">{{ error }}</li>{% endfor %}
+      </ul>
+    {% endif %}
+  </div>
+{% endmacro %}
+
+{% macro render_form_errors(form) %}
+  {% if form.form_errors %}
+    <div class="fs-div" id="fs-form-errors">
+      <ul>
+        {% for error in form.form_errors %}<li class="fs-error-msg">{{ error }}</li>{% endfor %}
+      </ul>
+    </div>
+  {% endif %}
+{% endmacro %}
+
+{% macro prop_next() -%}
+  {% if 'next' in request.args %}?next={{ request.args.next|urlencode }}{% endif %}
+{%- endmacro %}

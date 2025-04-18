@@ -1,50 +1,70 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <title>Login</title>
-    <!--<meta http-equiv="refresh" content="30"> -->
-    <meta charset="UTF-8" http-equiv="X-UA-Compatible" content="IE=edge">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0"> 
-    <!-- Bootstrap CSS -->   
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-1BmE4kWBq78iYhFldvKuhfTAU6auU8tT94WrHftjDbrCEXSU1oBoqyl2QvZ6jIW3" crossorigin="anonymous">
-    <!--fullcalendar-->
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/fullcalendar@5.5.0/main.min.css"> 
-    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.11.8/dist/umd/popper.min.js" integrity="sha384-I7E8VVD/ismYTF4hNIPjVp/Zjvgyol6VFvRkX/vR+Vc4jQkC+hVqc2pM8ODewa9r" crossorigin="anonymous"></script>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.min.js" integrity="sha384-BBtl+eGJRgqQAUMxJ7pMwbEyER4l1g+O15P+16Ep7Q9Q+zqX6gSbd85u4mG4QzX+" crossorigin="anonymous"></script>
-    <script src="https://cdn.jsdelivr.net/npm/fullcalendar@5.5.0/main.min.js"></script>
-    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
-</head>
-<body>
-    <header>
-        <header>
-            {%include 'navbar.html'%}
-        </header>
-        <article class="flashes">                       <!-- Flashing -->
-            {%with messages = get_flashed_messages()%}
-                {%if messages%}
-                    <ul>
-                        {% for message in messages%}
-                        <div class="alert alert-success alert-dismissible fade show" role="alert">
-                          {{message}}
-                          <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-                        </div>
+{% extends "base.html" %}
+{% from "security/_macros.html" import render_field_with_errors, render_field %}
 
-                        {%endfor%}
-                    </ul>
-                {%endif%}
-            {% endwith %}    
-        </article>
-    </header>
-    <main>
-        <h1>Login</h1>
-        <form method="POST" action="{{ url_for('login') }}">
-            {{form.hidden_tag()}}
-            {{form.email.label}}{{form.email}}
-            {{form.password.label}}{{form.password}}
-            {{form.submit}}
-        </form>
-        <li><a href="{{url_for('register')}}">Register</a></li>
-    </main>
-</body>    
+{% block content %}
+  <div class="container">
+    <div class="row justify-content-center">
+      <div class="col-md-6">
+        <div class="card mt-5">
+          <div class="card-header bg-primary text-white">
+            <h3>Login</h3>
+          </div>
+          <div class="card-body">
+            {% include "security/_messages.html" %}
+            <form action="{{ url_for_security('login') }}" method="post" name="send_login_form">
+              {{ send_login_form.hidden_tag() }}
+              <div class="mb-3">
+                {{ render_field_with_errors(send_login_form.email, class="form-control", placeholder="Email Address") }}
+              </div>
+              <div class="mb-3">
+                {{ render_field_with_errors(send_login_form.password, class="form-control", placeholder="Password", type="password") }}
+              </div>
+              <div class="mb-3">
+                {{ render_field(s{% extends "base.html" %}
+{% from "security/_macros.html" import render_field_with_errors, render_field %}
 
-</html>
+{% block content %}
+  <div class="container">
+    <div class="row justify-content-center">
+      <div class="col-md-6">
+        <div class="card mt-5">
+          <div class="card-header bg-primary text-white">
+            <h3>Login</h3>
+          </div>
+          <div class="card-body">
+            {% include "security/_messages.html" %}
+            <form action="{{ url_for_security('login') }}" method="post" name="send_login_form">
+              {{ send_login_form.hidden_tag() }}
+              <div class="mb-3">
+                {{ render_field_with_errors(send_login_form.email, class="form-control", placeholder="Email Address") }}
+              </div>
+              <div class="mb-3">
+                {{ render_field_with_errors(send_login_form.password, class="form-control", placeholder="Password", type="password") }}
+              </div>
+              <div class="mb-3">
+                {{ render_field(send_login_form.submit, class="btn btn-primary btn-block", value="<i class='bi bi-box-arrow-in-right'></i> Login") }}
+              </div>
+              <div class="text-center">
+                <a href="{{ url_for_security('forgot_password') }}">Forgot Password?</a>
+              </div>
+              <div class="text-center">
+                <a href="{{ url_for_security('register') }}">Don't have an account? Register here</a>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+{% endblock content %}end_login_form.submit, class="btn btn-primary btn-block") }}
+              </div>
+              <div class="text-center">
+                <a href="{{ url_for_security('forgot_password') }}">Forgot Password?</a>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+{% endblock content %}

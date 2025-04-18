@@ -40,23 +40,25 @@
           </li>
           {% endif %}
         </ul>
+        {% if current_user.is_authenticated and 'admin' in current_user.roles %}
         <form action="/search" class="d-flex justify-content-end"  role="search">
           <input class="form-control me-2" type="search" name="search_term" placeholder="Search" aria-label="Search">
-          <button class="btn btn-outline-success" type="submit">Search</button>
+          <button class="btn btn-outline-success" type="submit"><i class="bi bi-search"></i> Search</button>
         </form>
-        <ul  class="navbar-nav ms-auto">
+        {% endif %}
+        <ul class="navbar-nav ms-auto">
 
           {% if not current_user.is_authenticated%}
           <li class="nav-item">
-            <a class="nav-link {% block activeRegister %}{% endblock  %}" href={{url_for('register')}}>Register</a>
+            <a class="nav-link {% block activeRegister %}{% endblock  %}" href={{url_for('register')}}><i class="bi bi-person-plus-fill"></i> Register</a>
           </li>
           <li class="nav-item">
-            <a class="nav-link {% block activeLogin %}{% endblock  %}" href={{url_for('login')}}>Login</a>
+            <a class="nav-link {% block activeLogin %}{% endblock  %}" href={{url_for('login')}}><i class="bi bi-box-arrow-in-right"></i> Login</a>
           </li>
           {% endif %}
           {% if current_user.is_authenticated%}
           <li class="nav-item">
-            <a class="nav-link {% block activeLogout %}{% endblock  %}" href={{url_for('logout')}}>Logout</a>
+            <a class="nav-link {% block activeLogout %}{% endblock  %}" href={{url_for('logout')}}><i class="bi bi-box-arrow-left"></i> Logout</a>
           </li>
           {% endif %}
         </ul>

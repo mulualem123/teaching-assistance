@@ -257,93 +257,72 @@ function refreshPlaylistSidebar(playlists) {
         sidebar.appendChild(playlistCard);
     });
 }
-// Play All Functionality
+// Font Size Adjustment for Modals
+const FONT_STEP = 1; // Adjust font size by 1px per click
+const MIN_FONT_SIZE = 10; // Minimum font size in pixels
+const MAX_FONT_SIZE = 28; // Maximum font size in pixels
+
+function adjustModalFontSize(buttonElement, direction) {
+    const modal = buttonElement.closest('.modal'); // Find the parent modal
+    if (!modal) {
+        console.error("Could not find parent modal for font size adjustment.");
+        return;
+    }
+
+    const lyricElements = modal.querySelectorAll('.modal-lyrics-content'); // Find lyrics within this specific modal
+    if (!lyricElements || lyricElements.length === 0) {
+        console.warn("No elements with class 'modal-lyrics-content' found in this modal.");
+        return;
+    }
+
+    lyricElements.forEach(element => {
+        const currentSizeStyle = window.getComputedStyle(element, null).getPropertyValue('font-size');
+        let currentSize = parseFloat(currentSizeStyle); // Get current size in pixels
+
+        if (isNaN(currentSize)) {
+            console.error("Could not parse current font size:", currentSizeStyle);
+            currentSize = 16; // Default to 16px if parsing fails
+        }
+
+        let newSize;
+        if (direction === 'increase') {
+            newSize = Math.min(currentSize + FONT_STEP, MAX_FONT_SIZE);
+        } else if (direction === 'decrease') {
+            newSize = Math.max(currentSize - FONT_STEP, MIN_FONT_SIZE);
+        } else {
+            return; // Invalid direction
+        }
+
+        element.style.fontSize = `${newSize}px`;
+    });
+}
+
 function playAll() {
     console.log('Play All clicked');
-    console.log('Lyrics containers exist?', 
-        !!document.getElementById('colapGeez'),
-        !!document.getElementById('colapLatin'),
-        !!document.getElementById('colapEnglish')
-    );
     if (!currentPlayer.songs?.length) {
         showToast('No songs in this playlist', 'warning');
         return;
     }
 
-    // Clear previous audio
+    // Stop and remove any existing audio element to ensure a fresh start
     if (currentPlayer.audioElement) {
         currentPlayer.audioElement.pause();
+        // Remove listeners before removing element
+        currentPlayer.audioElement.onended = null;
+        currentPlayer.audioElement.onerror = null;
+        currentPlayer.audioElement.ontimeupdate = null;
+        currentPlayer.audioElement.onloadedmetadata = null;
         currentPlayer.audioElement.remove();
+        currentPlayer.audioElement = null; // Nullify the reference
+        console.log("Removed previous audio element for Play All.");
     }
 
-    // Initialize audio
-    currentPlayer.audioElement = new Audio();
-    currentPlayer.audioElement.preload = "auto";
-    currentPlayer.audioElement.controls = true;
-    currentPlayer.audioElement.style.width = '100%';
-
-    // Error handling
-    currentPlayer.audioElement.addEventListener('error', (e) => {
-        showToast(`Audio error: ${e.target.error.message}`, 'error');
-    });
-
-    document.getElementById('playlistSongs').prepend(currentPlayer.audioElement);
-    currentPlayer.currentIndex = 0;
-    playNextSong();
+    // Reset index and start playback from the beginning
+    currentPlayer.currentIndex = -1; // Set to -1 so skipToNextSong starts correctly at 0
+    skipToNextSong(); // Use skipToNextSong to initialize and play the first song
 }
-// function playAll() {
-//     if (currentPlayer.songs.length === 0) {
-//         showToast('No songs in this playlist', 'warning');
-//         return;
-//     }
 
-//     // Stop any existing playback
-//     if (currentPlayer.audioElement) {
-//         currentPlayer.audioElement.pause();
-//         currentPlayer.audioElement.remove();
-//     }
 
-//     // Create new audio element
-//     currentPlayer.audioElement = new Audio();
-//     currentPlayer.audioElement.controls = true;
-//     currentPlayer.audioElement.style.width = '100%';
-    
-//     // Add player to modal
-//     const playerContainer = document.getElementById('playlistSongs');
-//     playerContainer.prepend(currentPlayer.audioElement);
-    
-//     // Start playback
-//     currentPlayer.currentIndex = 0;
-//     playNextSong();
-// }
-//Play Next Mezmur
-// function playNextSong() {
-    // if (currentPlayer.currentIndex >= currentPlayer.songs.length) {
-        // showToast('Playlist playback completed', 'success');
-        // return;
-    // }
-// 
-    // const song = currentPlayer.songs[currentPlayer.currentIndex];
-    // currentPlayer.audioElement.src = song.audio_url;
-    ////Reveal the lyrics controls.
-    // const lyricsControls = document.getElementById('lyricsControls');
-    // if (lyricsControls.classList.contains('d-none')) {
-    //    lyricsControls.classList.remove('d-none');
-    // } 
-    ////Display lyrics of mezmur        
-    // document.getElementById("colapGeez").innerText = song.lyrics || "Lyrics not available.";
-    ////Update UI
-    // highlightCurrentSong(currentPlayer.currentIndex);
-    // 
-    // currentPlayer.audioElement.play();
-    // 
-    ////Set up next song
-    // currentPlayer.audioElement.onended = () => {
-        // currentPlayer.currentIndex++;
-        // playNextSong();
-    // };
-    // 
-// }
 function highlightCurrentSong(index) {
     document.querySelectorAll('#playlistSongs .list-group-item').forEach((item, i) => {
         item.classList.toggle('active', i === index);
@@ -452,72 +431,174 @@ function highlightLyrics(currentTime) {
     });
 }
 
-// Modified playNextSong function
+// Replace the existing playNextSong function with this one
 async function playNextSong() {
     try {
-        if (currentPlayer.currentIndex >= currentPlayer.songs.length) {
-            showToast('Playlist playback completed', 'success');
+        // Check if playlist is valid and index is within bounds
+        if (!currentPlayer.songs || currentPlayer.songs.length === 0) {
+            showToast('Playlist is empty.', 'info');
+            highlightCurrentSong(-1);
+            document.getElementById('lyricsControls').classList.add('d-none');
+            if (currentPlayer.audioElement) currentPlayer.audioElement.pause();
             return;
         }
-
+        // Ensure index is valid after potential advancement/looping
+        if (currentPlayer.currentIndex < 0 || currentPlayer.currentIndex >= currentPlayer.songs.length) {
+             console.warn(`Invalid index ${currentPlayer.currentIndex}, resetting to 0.`);
+             currentPlayer.currentIndex = 0;
+             if (currentPlayer.songs.length === 0) { // Double check after reset
+                 showToast('Playlist is empty.', 'info');
+                 return;
+             }
+        }
+ 
         const song = currentPlayer.songs[currentPlayer.currentIndex];
-        if (!song) throw new Error('Invalid song data');
-
-        // Initialize lyrics with fallbacks
+        if (!song) {
+            console.error(`No song data found for index: ${currentPlayer.currentIndex}`);
+            showToast('Error: Could not load song data.', 'error');
+            // Attempt to skip to the next valid one
+            setTimeout(skipToNextSong, 500);
+            return;
+        }
+ 
+        console.log(`Attempting to play song: ${song.title} at index ${currentPlayer.currentIndex}`);
+ 
+        // --- Update Lyrics Display ---
         currentLyrics = {
-            geez: parseTimedLyrics(song.timed_geez || ''),
+            geez: parseTimedLyrics(song.timed_geez || song.lyrics || ''),
             latin: parseTimedLyrics(song.timed_latin || ''),
             english: parseTimedLyrics(song.timed_english || '')
         };
-
-        // Clear previous lyrics
+ 
         ['geez', 'latin', 'english'].forEach(lang => {
-            const container = document.getElementById(`colap${lang.charAt(0).toUpperCase() + lang.slice(1)}`);
-            if (container) container.innerHTML = '';
+            const containerId = `colap${lang.charAt(0).toUpperCase() + lang.slice(1)}`;
+            const container = document.getElementById(containerId);
+            if (container) container.innerHTML = ''; // Clear first
         });
-
-        // Display lyrics to CORRECT containers
+ 
         displayLyrics(currentLyrics.geez, 'colapGeez');
         displayLyrics(currentLyrics.latin, 'colapLatin');
-        displayLyrics(currentLyrics.english, 'colapEnglish'); // Fixed ID
-
-        // Display lyrics
-        Object.entries(currentLyrics).forEach(([lang, lines]) => {
-            displayLyrics(lines, `colap${lang.charAt(0).toUpperCase() + lang.slice(1)}`);
-        });
-
-        // Initialize audio
-        currentPlayer.audioElement.src = song.audio_url;
-        
-        // Wait for audio to load
-        await new Promise((resolve, reject) => {
-            currentPlayer.audioElement.addEventListener('loadedmetadata', resolve);
-            currentPlayer.audioElement.addEventListener('error', reject);
-        });
-
-        // Start playback
-        await currentPlayer.audioElement.play();
-        
-        // Set up highlighting
-        currentPlayer.audioElement.addEventListener('timeupdate', () => {
-            highlightLyrics(currentPlayer.audioElement.currentTime);
-        });
-
-        // Update UI
+        displayLyrics(currentLyrics.english, 'colapEnglish');
+ 
         highlightCurrentSong(currentPlayer.currentIndex);
         document.getElementById('lyricsControls').classList.remove('d-none');
-
-        // Handle track ending
-        currentPlayer.audioElement.onended = () => {
-            currentPlayer.currentIndex++;
-            playNextSong();
-        };
-
+        // --- End Lyrics Update ---
+ 
+ 
+        // --- Handle Audio ---
+        // Ensure audio element exists and is in the DOM, create if necessary
+        if (!currentPlayer.audioElement || !document.body.contains(currentPlayer.audioElement)) {
+             if (currentPlayer.audioElement) currentPlayer.audioElement.remove(); // Clean up old one if detached
+             console.log("Creating new Audio element");
+             currentPlayer.audioElement = new Audio();
+             currentPlayer.audioElement.controls = true;
+             currentPlayer.audioElement.style.width = '100%';
+             currentPlayer.audioElement.preload = "auto"; // Important for loading
+             // Add the new audio element to the DOM *before* setting src
+             document.getElementById('playlistSongs').prepend(currentPlayer.audioElement);
+        }
+ 
+        // Remove previous listeners before adding new ones
+        currentPlayer.audioElement.onended = null;
+        currentPlayer.audioElement.onerror = null;
+        currentPlayer.audioElement.ontimeupdate = null;
+        currentPlayer.audioElement.onloadedmetadata = null;
+ 
+ 
+        if (song.audio_url && song.audio_url !== 'null' && song.audio_url.trim() !== '') {
+            console.log(`Audio URL found: ${song.audio_url}`);
+            currentPlayer.audioElement.src = song.audio_url;
+ 
+            // Setup event listeners for the *current* track
+            currentPlayer.audioElement.onloadedmetadata = () => {
+                console.log(`Metadata loaded for: ${song.title}`);
+            };
+            currentPlayer.audioElement.ontimeupdate = () => {
+                highlightLyrics(currentPlayer.audioElement.currentTime);
+            };
+            currentPlayer.audioElement.onended = () => {
+                console.log(`Song ended: ${song.title}. Advancing.`);
+                skipToNextSong(); // Use skip function for consistent advancement
+            };
+            currentPlayer.audioElement.onerror = (e) => {
+                const errorMsg = e.target.error ? `${e.target.error.code}; ${e.target.error.message}` : 'Unknown audio error';
+                showToast(`Audio error for "${song.title}": ${errorMsg}`, 'error');
+                console.error('Audio Element Error:', e.target.error);
+                // Optionally skip to next on error after a delay
+                // setTimeout(skipToNextSong, 1000);
+            };
+ 
+            try {
+                console.log(`Playing audio: ${song.title}`);
+                await currentPlayer.audioElement.play();
+                console.log(`Playback started for: ${song.title}`);
+            } catch (playError) {
+                console.error(`Error starting playback for ${song.title}:`, playError);
+                showToast(`Could not play "${song.title}": ${playError.message}`, 'error');
+                // Maybe skip if playback fails immediately?
+                // setTimeout(skipToNextSong, 500);
+            }
+ 
+        } else {
+            // --- No Audio Available ---
+            console.log(`No audio URL for: ${song.title}`);
+            showToast(`"${song.title}" has no audio. Displaying lyrics only.`, 'info');
+            // Ensure player is stopped if previous track had audio
+            if (currentPlayer.audioElement && !currentPlayer.audioElement.paused) {
+                currentPlayer.audioElement.pause();
+            }
+            // Clear src to avoid potential issues with the old source
+            if (currentPlayer.audioElement) {
+                currentPlayer.audioElement.removeAttribute('src');
+                // Consider hiding or disabling the controls visually
+                // currentPlayer.audioElement.style.display = 'none';
+            }
+            // Do not set up 'onended' or 'timeupdate' if there's no audio.
+            // User must click "Play Next" or "Play All" again.
+        }
+        // --- End Audio Handling ---
+ 
     } catch (error) {
-        showToast(`Playback error: ${error.message}`, 'error');
-        console.error('Playback Error:', error);
+        showToast(`Playback error: ${error.message || 'Unknown error'}`, 'error');
+        console.error('General Playback Error in playNextSong:', error);
+        // Attempt to recover?
+        // setTimeout(skipToNextSong, 1000);
     }
+ }
+
+// Add this new function
+function skipToNextSong() {
+    if (!currentPlayer.songs || currentPlayer.songs.length === 0) {
+        showToast('Playlist is empty or not loaded.', 'warning');
+        return;
+    }
+
+    console.log(`Skipping from index: ${currentPlayer.currentIndex}`);
+
+    // Stop current playback forcefully
+    if (currentPlayer.audioElement && !currentPlayer.audioElement.paused) {
+        currentPlayer.audioElement.pause();
+        // Remove event listeners to prevent potential conflicts from the stopped track
+        currentPlayer.audioElement.onended = null;
+        currentPlayer.audioElement.onerror = null;
+        currentPlayer.audioElement.ontimeupdate = null;
+        console.log('Paused current audio.');
+    }
+
+    // Advance index
+    currentPlayer.currentIndex++;
+
+    // Handle playlist wrap-around
+    if (currentPlayer.currentIndex >= currentPlayer.songs.length) {
+        currentPlayer.currentIndex = 0; // Loop back to the start
+        showToast('Reached end of playlist, starting over.', 'info');
+    }
+    console.log(`Advanced to index: ${currentPlayer.currentIndex}`);
+
+    // Play the song at the new index
+    playNextSong(); // playNextSong uses the updated currentPlayer.currentIndex
 }
+
 // Event Handlers
 function setupEventListeners() {
     // Filtering
@@ -570,8 +651,6 @@ function setupEventListeners() {
 
     document.getElementById
 }
-
-// ... (rest of your mezmur.js code) ...
 
 // Initialization
 document.addEventListener('DOMContentLoaded', () => {
@@ -681,36 +760,47 @@ document.getElementById('addMezmurForm').addEventListener('submit', async (event
 
 // ... other JavaScript code ...
 
-document.querySelector('.add-tag-form').addEventListener('submit', async (event) => {
-    event.preventDefault();
-    const formData = new FormData(event.target);
-    try {
-        const response = await fetch('/add_tag', {
-            method: 'POST',
-            body: formData
-        });
-        if (!response.ok) {
-            const errorData = await response.json();
-            showToast(`Error: ${errorData.error}`, 'error');
-            return;
-        }
-        const data = await response.json();
-        showToast(data.message, 'success');
-        // Update the UI to show the new tag (you'll need to implement this part)
-        // For example, you could append a new <span> element to the tag list
-        const newTagSpan = document.createElement('span');
-        newTagSpan.className = 'tag';
-        newTagSpan.textContent = data.tag;
-        document.querySelector('.tag-list').appendChild(newTagSpan);
-        event.target.reset(); // Clear the form
-        location.reload();
-    } catch (error) {
-        showToast(`Error: ${error.message}`, 'error');
-        console.error('Error adding tag:', error);
+document.addEventListener('submit', (event) => {
+    if (event.target.classList.contains('add-tag-form')) {
+        event.preventDefault();
+        const formData = new FormData(event.target);
+        (async () => {
+            try {
+                const response = await fetch('/add_tag', {
+                    method: 'POST',
+                    body: formData
+                });
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    showToast(`Error: ${errorData.error}`, 'error');
+                    return;
+                }
+                const data = await response.json();
+                showToast(data.message, 'success');
+                // Update the UI to show the new tag
+                const tagCloud = document.querySelector('.tag-cloud');
+                if (tagCloud) {
+                    const newInput = document.createElement('input');
+                    newInput.type = 'checkbox';
+                    newInput.name = 'tag';
+                    newInput.value = data.tag.toLowerCase();
+                    newInput.id = `tag-${data.tag.toLowerCase().replace(/\s/g, '-')}`;
+
+                    const newLabel = document.createElement('label');
+                    newLabel.htmlFor = newInput.id;
+                    newLabel.appendChild(newInput);
+                    newLabel.appendChild(document.createTextNode(data.tag));
+
+                    tagCloud.appendChild(newLabel);
+                }
+                event.target.reset(); // Clear the form
+            } catch (error) {
+                showToast(`Error: ${error.message}`, 'error');
+                console.error('Error adding tag:', error);
+            }
+        })();
     }
 });
-
-// ... rest of your JavaScript code ...
 
 // Add at the end of mezmur.js
 window.addEventListener('error', function(e) {

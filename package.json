@@ -1,0 +1,25 @@
+{
+  "dependencies": {
+    "@agentdeskai/browser-tools-mcp": "^1.2.1",
+    "@modelcontextprotocol/sdk": "^1.10.0"
+  },
+  "name": "teaching-assistance",
+  "description": "When you're ready, start your application by running: `docker compose up --build`.",
+  "type": "module",
+  "version": "1.0.0",
+  "main": "simple_mcp_server.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mulualem123/teaching-assistance.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/mulualem123/teaching-assistance/issues"
+  },
+  "homepage": "https://github.com/mulualem123/teaching-assistance#readme"
+}

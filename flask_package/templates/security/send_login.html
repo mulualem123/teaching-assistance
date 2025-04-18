@@ -1,0 +1,34 @@
+{% extends 'security/base.html' %}
+{% block security_content %}
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <div class="card mt-5 shadow-sm">
+                <div class="card-header bg-primary text-white">
+                    <h3>Login</h3>
+                </div>
+                <div class="card-body">
+                    {% include "security/_messages.html" %}
+                    <form action="{{ url_for_security('login') }}" method="post">
+                        {{ send_login_form.hidden_tag() }}
+                        <div class="mb-3">
+                            <label for="email" class="form-label">Email Address</label>
+                            {{ send_login_form.email(class="form-control", placeholder="Email Address", autofocus=true) }}
+                        </div>
+                        <div class="mb-3">
+                            <label for="password" class="form-label">Password</label>
+                            {{ send_login_form.password(class="form-control", placeholder="Password", type="password") }}
+                        </div>
+                        <div class="mb-3 form-check">
+                            {{ send_login_form.remember(class="form-check-input") }}
+                            <label class="form-check-label" for="remember">{{ send_login_form.remember.label }}</label>
+                        </div>
+                        {{ send_login_form.submit(class="btn btn-primary btn-block", value="<i class='bi bi-box-arrow-in-right'></i> Login") }}
+                        <div class="text-center mt-2">
+                            <a href="{{ url_for_security('forgot_password') }}">Forgot Password?</a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+{% endblock %}

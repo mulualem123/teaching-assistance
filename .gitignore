@@ -10,3 +10,7 @@ __pycache__/
 
 # Ignore virtual environment directory
 venv/
+.venv/
+.venv
+./flask_package/archive/
+debug.md

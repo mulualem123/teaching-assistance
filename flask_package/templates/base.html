@@ -18,12 +18,30 @@
 <body class="bg-light">
     {% include 'navbar.html' %}
 
-    <div class="main-content-wrapper">
-        <main class="container py-5">
-            {% block content %}
-            {% endblock %}
-        </main>
-    </div>
+    <article class="flashes">                       <!-- Flashing -->
+        {%with messages = get_flashed_messages()%}
+            {%if messages%}
+                <ul>
+                    {% for message in messages%}
+                    <div class="alert alert-success alert-dismissible fade show" role="alert">
+                      {{message}}
+                      <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+
+                    {%endfor%}
+                </ul>
+            {%endif%}
+        {% endwith %}    
+    </article>
+
+    {% block content %}
+        <!--<div class="main-content-wrapper">
+            <main class="container py-5">
+
+            </main>
+        </div> -->
+    {% endblock %}
+
 
     {% block sidebar %}
     {% endblock %}
