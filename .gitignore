@@ -1,5 +1,9 @@
 # Ignore database files
 teaching-assistance/flask_package/instance/site.db
+*.db
+*.sqlite
+*.sqlite3
+
 
 # Ignore compiled Python files
 __pycache__/
@@ -14,3 +18,8 @@ venv/
 .venv
 ./flask_package/archive/
 debug.md
+
+# Lab-specific files (please update with actual patterns)
+# For example:
+# lab_notebooks/
+# *.lab_data
