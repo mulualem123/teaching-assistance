@@ -1,0 +1,14 @@
+all:
+  children:
+    ec2_instances:
+      hosts:
+        glenbridge_main:
+          ansible_host: zimareyared.com
+          ansible_user: ubuntu
+          ansible_ssh_private_key_file: ~/.ssh/id_rsa
+          domain_name: "zimareyared.com"
+          cert_email: "mulualem.hailom@gmail.com"
+
+  vars:
+    # You can keep other common variables here if they apply to all hosts in ec2_instances
+    gunicorn_port: 4242

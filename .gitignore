@@ -23,3 +23,21 @@ debug.md
 # For example:
 # lab_notebooks/
 # *.lab_data
+
+# Ignore Node.js dependencies
+node_modules/
+
+# Ignore instance folder
+instance/
+
+# Ignore log files
+*.log
+
+# Ignore large media and document files
+*.pptx
+*.xlsx
+*.mp3
+*.ogg
+*.webm
+*.mpeg
+*.backup

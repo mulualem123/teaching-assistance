@@ -1,0 +1,107 @@
+- name: Deploy Nginx web app to Ubuntu EC2
+  #hosts: glenbridge_test
+  hosts: glenbridge_main
+  become: yes
+  vars: # domain_name and cert_email will now come from inventory per host
+    # gunicorn_port is already in inventory global vars
+    webroot_path: "/var/www/{{ domain_name }}/html" # Domain-specific webroot for Let's Encrypt challenges
+    nginx_config_available_path: "/etc/nginx/sites-available/{{ domain_name }}.conf"
+    nginx_config_enabled_path: "/etc/nginx/sites-enabled/{{ domain_name }}.conf"
+
+  tasks:
+    - name: Install Nginx
+      apt:
+        name: nginx
+        state: present
+        update_cache: yes
+
+    - name: Ensure Nginx is running and enabled
+      service:
+        name: nginx
+        state: started
+        enabled: yes
+
+    - name: Create webroot directory for domain
+      file:
+        path: "{{ webroot_path }}"
+        state: directory
+        mode: '0755'
+        owner: www-data # Or the user Nginx runs as
+        group: www-data
+
+    - name: Deploy Nginx HTTP site configuration for ACME challenge
+      template:
+        src: "templates/nginx_http_acme.conf.j2" # Template for HTTP ACME challenge
+        dest: "{{ nginx_config_available_path }}"
+        mode: '0644'
+      notify: Restart Nginx
+
+    - name: Enable Nginx site configuration
+      file:
+        src: "{{ nginx_config_available_path }}"
+        dest: "{{ nginx_config_enabled_path }}"
+        state: link
+      notify: Restart Nginx
+
+    # EPEL repository is specific to RHEL-based systems and not needed for Certbot on Ubuntu.
+    # Certbot is typically available in Ubuntu's main repositories or via a PPA.
+    # If a PPA is required for your Ubuntu version, add apt_repository tasks here.
+
+    - name: Install Certbot and Nginx plugin
+      apt:
+        name:
+          - certbot
+          - python3-certbot-nginx # Nginx plugin for Certbot on Ubuntu
+        state: present
+        update_cache: yes # Ensure package lists are updated
+
+    # - name: Validate Nginx configuration before Certbot
+    #   command: nginx -t
+    #   register: nginx_validation_initial
+    #   failed_when: false # Do not fail the playbook here, just register the result
+    #   changed_when: false
+
+    - name: Flush handlers to ensure Nginx is restarted before Certbot
+      meta: flush_handlers
+
+    - name: Obtain/Renew SSL certificate with Certbot (webroot method)
+      command: >
+        certbot certonly --webroot -w {{ webroot_path }}
+        -d {{ domain_name }}
+        --email {{ cert_email }} --agree-tos --no-eff-email --non-interactive
+      args:
+        # This ensures the command only runs if the certificate doesn't exist,
+        # making it idempotent for initial creation. Certbot handles renewal logic internally.
+        creates: "/etc/letsencrypt/live/{{ domain_name }}/fullchain.pem"
+      # No notify here, SSL config deployment will trigger restart
+
+    - name: Generate ssl-dhparams.pem if it does not exist
+      command: openssl dhparam -out /etc/letsencrypt/ssl-dhparams.pem 2048
+      args:
+        creates: /etc/letsencrypt/ssl-dhparams.pem
+      # No notify here, SSL config deployment will trigger restart
+
+    - name: Deploy Nginx SSL site configuration
+      template:
+        src: "templates/nginx_ssl_site.conf.j2" # Template with SSL, http2 fix, and proxy
+        dest: "{{ nginx_config_available_path }}" # Overwrite the HTTP config with the full SSL config
+        mode: '0644'
+      notify: Restart Nginx
+
+    - name: Validate Nginx configuration after all operations
+      command: nginx -t
+      changed_when: false
+      # This validation runs to ensure Nginx is in a good state after all changes.
+
+    - name: Test Certbot auto-renewal (runs daily via cron/systemd timer set by Certbot)
+      command: certbot renew --dry-run
+      register: certbot_renew_test
+      changed_when: false
+      # Ignore failure if it's due to "Another instance of Certbot is already running."
+      failed_when: "certbot_renew_test.rc != 0 and 'Another instance of Certbot is already running.' not in certbot_renew_test.stderr"
+
+  handlers:
+    - name: Restart Nginx
+      service:
+        name: nginx
+        state: restarted

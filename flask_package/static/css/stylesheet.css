@@ -18,6 +18,172 @@
     box-shadow: 0 10px 20px rgba(0,0,0,0.1); /* Subtle shadow on hover */
 }
 
+/* Playlist Card Styles */
+.playlist-card {
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+    background: linear-gradient(145deg, #ffffff, #f8f9fa);
+    border: none;
+    border-radius: 15px;
+    overflow: hidden;
+}
+
+.playlist-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 25px rgba(0,0,0,0.12);
+}
+
+.playlist-card .card-title a {
+    color: var(--primary-color);
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.playlist-card .card-title a:hover {
+    color: var(--secondary-color);
+}
+
+.playlist-card .badge {
+    font-size: 0.75em;
+    font-weight: 500;
+}
+
+/* Song Item Styles */
+.song-item {
+    transition: background-color 0.2s ease;
+    border-left: 3px solid transparent;
+}
+
+.song-item:hover {
+    background-color: #f8f9fa;
+    border-left-color: var(--secondary-color);
+}
+
+.song-item .play-song-btn {
+    transition: all 0.2s ease;
+}
+
+.song-item .play-song-btn:hover {
+    background-color: var(--secondary-color);
+    border-color: var(--secondary-color);
+    color: white;
+}
+
+/* Lyrics Text Styles */
+.lyrics-text {
+    background-color: #f8f9fa;
+    padding: 1rem;
+    border-radius: 8px;
+    font-family: 'Georgia', serif;
+    line-height: 1.6;
+    white-space: pre-wrap;
+}
+
+/* Share Button Styles */
+.share-playlist-btn, .copy-share-link-btn {
+    transition: all 0.2s ease;
+}
+
+.share-playlist-btn:hover {
+    background-color: #e8f5e8;
+}
+
+.copy-share-link-btn:hover {
+    background-color: #e3f2fd;
+}
+
+/* Ethiopian Orthodox Error Handling Styles */
+.playlist-error-fallback {
+    background: linear-gradient(135deg, #fefefe 0%, #f8f9fa 100%);
+    border: 2px solid #e9ecef;
+    border-radius: 15px;
+    padding: 2rem;
+    text-align: center;
+}
+
+.playlist-error-fallback .error-icon {
+    color: #ffc107;
+    font-size: 4rem;
+    margin-bottom: 1rem;
+    text-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.playlist-error-fallback h4 {
+    color: #495057;
+    font-weight: 600;
+    margin-bottom: 1rem;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+.playlist-error-fallback .error-message {
+    color: #6c757d;
+    font-size: 1rem;
+    margin-bottom: 2rem;
+    line-height: 1.6;
+}
+
+.playlist-error-actions .list-group-item {
+    transition: all 0.3s ease;
+    cursor: pointer;
+    border-radius: 8px !important;
+    margin-bottom: 0.5rem;
+}
+
+.playlist-error-actions .list-group-item:hover {
+    background-color: #f8f9fa;
+    transform: translateX(5px);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.playlist-error-actions .list-group-item i {
+    font-size: 1.1rem;
+}
+
+/* Tags Modal Styling */
+.tags-modal .modal-content {
+    border-radius: 15px;
+    border: none;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+}
+
+.tags-modal .modal-header {
+    background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
+    color: white;
+    border-radius: 15px 15px 0 0;
+    border-bottom: none;
+}
+
+.tags-modal .btn-outline-primary {
+    border-radius: 20px;
+    transition: all 0.3s ease;
+}
+
+.tags-modal .btn-outline-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,123,255,0.3);
+}
+
+/* Ethiopian-inspired Toast Styling */
+.toast.ethiopian-style {
+    background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+    border: none;
+    border-radius: 10px;
+    color: white;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+
+.toast.ethiopian-style.error {
+    background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
+}
+
+.toast.ethiopian-style.warning {
+    background: linear-gradient(135deg, #ffc107 0%, #e0a800 100%);
+    color: #212529;
+}
+
+.toast.ethiopian-style .bi {
+    font-size: 1.2rem;
+}
+
 
 /* Tag Pill Styles */
 .tag-pill {
@@ -179,6 +345,49 @@
 
 /* Masonry Layout Override */
 #mezmurGrid {
+    margin: 0 !important;
+}
+
+/* Ensure Bootstrap responsive grid works properly */
+.mezmur-card-container {
+    margin-bottom: 1.5rem !important;
+    transition: all 0.3s ease;
+}
+
+/* Responsive adjustments */
+@media (max-width: 575.98px) {
+    .mezmur-card-container {
+        margin-bottom: 1rem !important;
+    }
+}
+
+@media (min-width: 576px) and (max-width: 767.98px) {
+    .row-cols-1 > .col {
+        flex: 0 0 auto;
+        width: 100%;
+    }
+}
+
+@media (min-width: 768px) and (max-width: 991.98px) {
+    .row-cols-md-2 > .col {
+        flex: 0 0 auto;
+        width: 50%;
+    }
+}
+
+@media (min-width: 992px) {
+    .row-cols-lg-3 > .col {
+        flex: 0 0 auto;
+        width: 33.333333%;
+    }
+}
+
+/* Ensure cards maintain height consistency */
+.mezmur-card {
+    height: 100%;
+    min-height: 200px;
+}
+#mezmurGrid {
     display: block !important; /* Override Bootstrap's flex display */
 }
 
@@ -333,3 +542,403 @@
     font-size: 20px;
 }
 
+/* Floating Audio Player Styles */
+.floating-audio-player {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: white;
+    border-radius: 10px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+    padding: 15px;
+    z-index: 1050;
+    min-width: 300px;
+    transition: all 0.3s ease;
+}
+
+.floating-audio-player.minimized {
+    padding: 8px 15px;
+    min-width: 250px;
+}
+
+.floating-audio-player.hidden {
+    transform: translateY(100%) translateX(-50%);
+    opacity: 0;
+}
+
+.audio-controls {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.progress-container {
+    flex: 1;
+    margin: 0 10px;
+}
+
+.minimize-btn, .maximize-btn {
+    background: none;
+    border: none;
+    font-size: 1.2rem;
+    cursor: pointer;
+    color: #6c757d;
+}
+
+.minimize-btn:hover, .maximize-btn:hover {
+    color: #0d6efd;
+}
+
+.lyrics-toggle {
+    cursor: pointer;
+    user-select: none;
+}
+
+.lyrics-content.collapsed {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.3s ease;
+}
+
+.lyrics-content.expanded {
+    max-height: 500px;
+    transition: max-height 0.3s ease;
+}
+
+/* Enhanced Audio Player Styles */
+.enhanced-audio-controls {
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+    margin: 10px 0;
+}
+
+.enhanced-audio-controls .btn {
+    min-width: 80px;
+}
+
+.progress {
+    height: 6px;
+    margin: 10px 0;
+}
+
+.progress-bar {
+    transition: width 0.1s ease;
+}
+
+/* Modal Minimization Styles */
+.modal-minimize-btn {
+    background: none;
+    border: none;
+    font-size: 1.2rem;
+    cursor: pointer;
+    color: #6c757d;
+}
+
+.modal-minimize-btn:hover {
+    color: #0d6efd;
+}
+
+/* Floating Player Responsive */
+@media (max-width: 576px) {
+    .floating-audio-player {
+        left: 10px;
+        right: 10px;
+        transform: none;
+        min-width: auto;
+    }
+}
+
+/* Mobile Tags Dropdown Styles */
+.mobile-tags-dropdown {
+    max-width: 100% !important;
+    border-radius: 10px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+    z-index: 1050 !important;
+    position: relative;
+}
+
+.mobile-tags-dropdown .form-check {
+    padding: 0.5rem 0;
+    margin: 0;
+    border-bottom: 1px solid #f1f3f4;
+}
+
+.mobile-tags-dropdown .form-check:last-of-type {
+    border-bottom: none;
+}
+
+.mobile-tags-dropdown .form-check-label {
+    cursor: pointer;
+    padding-left: 0.5rem;
+    font-size: 0.95rem;
+}
+
+.mobile-tags-dropdown .form-check-input {
+    margin-top: 0.3rem;
+}
+
+/* Fix dropdown positioning */
+.dropdown-menu.show {
+    z-index: 1050 !important;
+}
+
+/* Ensure filter sidebar has proper z-index */
+.filter-sidebar {
+    position: relative;
+    z-index: 10;
+}
+
+#selectedTagsText {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Mobile responsiveness adjustments */
+@media (max-width: 991.98px) {
+    .filter-sidebar {
+        margin-bottom: 1.5rem;
+    }
+    
+    .tag-cloud {
+        margin-bottom: 1rem;
+    }
+    
+    .add-tag-form .input-group {
+        max-width: 100%;
+    }
+}
+
+/* Mobile Swipe Interface Styles */
+.mobile-swipe-container {
+    margin-bottom: 1.5rem;
+}
+
+.swipe-indicators {
+    display: flex;
+    justify-content: center;
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.indicator {
+    padding: 0.5rem 1rem;
+    background: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 20px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-size: 0.9rem;
+    font-weight: 500;
+}
+
+.indicator.active {
+    background: var(--primary-color);
+    color: white;
+    border-color: var(--primary-color);
+}
+
+.swipe-wrapper {
+    display: flex;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+    gap: 1rem;
+    padding-bottom: 0.5rem;
+}
+
+.swipe-wrapper::-webkit-scrollbar {
+    display: none;
+}
+
+.swipe-slide {
+    flex: 0 0 100%;
+    scroll-snap-align: start;
+    height: 400px;
+}
+
+.swipe-slide .card {
+    height: 100%;
+}
+
+.swipe-slide .card-body {
+    overflow-y: auto;
+    max-height: 340px;
+}
+
+/* Mobile playlist and tag styles */
+.playlist-card-mobile, 
+.shared-playlist-card-mobile {
+    transition: transform 0.2s ease;
+    border: 1px solid #e9ecef;
+}
+
+.playlist-card-mobile:hover,
+.shared-playlist-card-mobile:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+
+.tag-list-mobile .form-check {
+    padding: 0.25rem 0;
+    border-bottom: 1px solid #f1f3f4;
+}
+
+.tag-list-mobile .form-check:last-child {
+    border-bottom: none;
+}
+
+.tag-list-mobile .form-check-label {
+    cursor: pointer;
+    font-size: 0.95rem;
+}
+
+/* Responsive adjustments for mobile interface */
+@media (max-width: 575.98px) {
+    .swipe-slide {
+        height: 350px;
+    }
+    
+    .swipe-slide .card-body {
+        max-height: 290px;
+    }
+    
+    .indicator {
+        padding: 0.4rem 0.8rem;
+        font-size: 0.8rem;
+    }
+}
+
+/* Hide mobile interface on desktop */
+@media (min-width: 992px) {
+    .mobile-swipe-container {
+        display: none !important;
+    }
+}
+
+/* Search suggestions styling */
+.search-suggestions .suggestion-item {
+    transition: background-color 0.2s ease;
+    cursor: pointer;
+    border-bottom: 1px solid #f1f3f4;
+}
+
+.search-suggestions .suggestion-item:last-child {
+    border-bottom: none;
+}
+
+.search-suggestions .suggestion-item:hover {
+    background-color: #f8f9fa;
+}
+
+.cursor-pointer {
+    cursor: pointer;
+}
+
+/* Enhanced focus states for accessibility */
+.mezmur-card:focus,
+.playlist-card:focus {
+    outline: 2px solid #007bff;
+    outline-offset: 2px;
+}
+
+/* Audio error handling styles */
+.audio-fallback {
+    padding: 8px 12px;
+    background-color: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 4px;
+    margin-top: 8px;
+}
+
+.audio-loading {
+    padding: 8px 12px;
+    background-color: #e3f2fd;
+    border-radius: 4px;
+    margin-bottom: 8px;
+}
+
+.audio-player {
+    margin-top: 10px !important;
+}
+
+/* Pull-to-refresh animation */
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+.spin {
+    animation: spin 1s linear infinite;
+}
+
+.pull-refresh-indicator {
+    font-size: 0.9rem;
+    font-weight: 500;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+}
+.center-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    margin-top: 50px;
+}
+
+.logo {
+    margin-bottom: 20px;
+}
+
+/* Login Page Styles */
+.login-container {
+    max-width: 400px;
+    margin: auto;
+    padding: 20px;
+}
+
+.card {
+    border-radius: 10px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+}
+
+.card-header {
+    background-color: #007bff;
+    color: white;
+    border-top-left-radius: 10px;
+    border-top-right-radius: 10px;
+}
+
+.form-control {
+    border-radius: 5px;
+    border: 1px solid #ced4da;
+    transition: border-color 0.3s;
+}
+
+.form-control:focus {
+    border-color: #007bff;
+    box-shadow: 0 0 5px rgba(0, 123, 255, 0.5);
+}
+
+.btn-primary {
+    border-radius: 5px;
+    transition: background-color 0.3s, transform 0.2s;
+}
+
+.btn-primary:hover {
+    background-color: #0056b3;
+    transform: scale(1.05);
+}
+
+.text-center a {
+    color: #007bff;
+    text-decoration: none;
+}
+
+.text-center a:hover {
+    text-decoration: underline;
+}

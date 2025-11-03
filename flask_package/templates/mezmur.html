@@ -3,7 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Spiritual Mezmurs - Bethel Hymns</title>
+    <title>Zimare Yared</title>
+    
+    <!-- Favicon -->
+    <link rel="shortcut icon" href="{{ url_for('static', filename='favicon.ico') }}" type="image/x-icon">
+    <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}" type="image/x-icon">
     
     <!-- Bootstrap 5 -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
@@ -63,7 +67,8 @@
                                 {%endif%}
                             </h6>
 
-                            <div class="tag-list">
+                            <!-- Desktop View: Show as list -->
+                            <div class="tag-list d-none d-lg-block">
                                 {% for tag in tags %}
                                 <div class="form-check">
                                     <input class="form-check-input" type="checkbox" value="{{ tag.tag }}" id="tag{{ loop.index }}">
@@ -73,10 +78,40 @@
                                 </div>
                                 {% endfor %}
                             </div>
+
+                            <!-- Mobile View: Show as dropdown -->
+                            <div class="d-lg-none">
+                                <div class="dropdown w-100">
+                                    <button class="btn btn-outline-secondary dropdown-toggle w-100 text-start" type="button" id="mobileTagsDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                                        <span id="selectedTagsText">Select Tags</span>
+                                    </button>
+                                    <ul class="dropdown-menu w-100 mobile-tags-dropdown" aria-labelledby="mobileTagsDropdown" style="max-height: 300px; overflow-y: auto;">
+                                        {% for tag in tags %}
+                                        <li>
+                                            <div class="form-check mx-3 my-2">
+                                                <input class="form-check-input mobile-tag-checkbox" type="checkbox" value="{{ tag.tag }}" id="mobileTag{{ loop.index }}">
+                                                <label class="form-check-label" for="mobileTag{{ loop.index }}">
+                                                    {{ tag.tag }}
+                                                </label>
+                                            </div>
+                                        </li>
+                                        {% endfor %}
+                                        <li><hr class="dropdown-divider"></li>
+                                        <li>
+                                            <button class="dropdown-item text-muted" type="button" onclick="clearAllTags()">
+                                                <i class="bi bi-x-circle me-2"></i>Clear All
+                                            </button>
+                                        </li>
+                                    </ul>
+                                </div>
+                            </div>
+
                             {% if current_user.is_authenticated and ('admin' in current_user.roles or 'mezmur_editor' in current_user.roles) %}
-                            <form method="POST" action="/add_tag" class="add-tag-form">
-                                <input type="text" name="tag_name" placeholder="Add new tag">
-                                <button type="submit" class="btn btn-sm btn-outline-primary"><i class="bi bi-plus"></i></button>
+                            <form method="POST" action="/add_tag" class="add-tag-form mt-3">
+                                <div class="input-group">
+                                    <input type="text" name="tag_name" class="form-control" placeholder="Add new tag">
+                                    <button type="submit" class="btn btn-outline-primary"><i class="bi bi-plus"></i></button>
+                                </div>
                             </form>
                             {% endif %}
                         </div>
@@ -84,8 +119,220 @@
                     </div>
                 </div>
 
+                <!-- Mobile Swipe Interface (Only visible on mobile) -->
+                <div class="col-12 d-lg-none">
+                    <div class="mobile-swipe-container">
+                        <!-- Navigation dots/indicators -->
+                        <div class="swipe-indicators text-center mb-3" role="tablist" aria-label="Content sections">
+                            <button class="indicator active" data-slide="0" role="tab" aria-selected="true" aria-controls="private-playlists">Private</button>
+                            <button class="indicator" data-slide="1" role="tab" aria-selected="false" aria-controls="shared-playlists">Shared</button>
+                            <button class="indicator" data-slide="2" role="tab" aria-selected="false" aria-controls="tag-filters">Tags</button>
+                        </div>
+                        
+                        <!-- Swipeable content -->
+                        <div class="swipe-wrapper" id="mobileSwipeWrapper" role="tabpanel" aria-live="polite">
+                            <!-- Column 1: Private Playlists -->
+                            <div class="swipe-slide" id="private-playlists" role="tabpanel" aria-labelledby="private-tab">
+                                <div class="card h-100">
+                                    <div class="card-header bg-primary text-white">
+                                        <h6 class="mb-0"><i class="bi bi-person-lock me-2" aria-hidden="true"></i>Your Collections</h6>
+                                    </div>
+                                    <div class="card-body p-2">
+                                        {% if current_user.is_authenticated %}
+                                            {% if current_user.playlists %}
+                                                <div class="playlist-list-mobile">
+                                                    {% for playlist in current_user.playlists %}
+                                                    <div class="card playlist-card-mobile mb-2" 
+                                                         data-playlist-id="{{ playlist.id }}"
+                                                         onclick="loadPlaylist({{ playlist.id }})" 
+                                                         style="cursor: pointer;">
+                                                        <div class="card-body p-2">
+                                                            <div class="d-flex justify-content-between align-items-start">
+                                                                <div class="flex-grow-1">
+                                                                    <h6 class="mb-1">{{ playlist.name }}</h6>
+                                                                    <p class="text-muted small mb-1">{{ playlist.description }}</p>
+                                                                    <span class="badge bg-secondary small">{{ playlist.song_count }} hymns</span>
+                                                                </div>
+                                                                <div class="dropdown ms-2" onclick="event.stopPropagation()">
+                                                                    <button class="btn btn-link p-0 text-muted" 
+                                                                            type="button" 
+                                                                            data-bs-toggle="dropdown">
+                                                                        <i class="bi bi-three-dots-vertical"></i>
+                                                                    </button>
+                                                                    <ul class="dropdown-menu dropdown-menu-end">
+                                                                        <li>
+                                                                            <button class="dropdown-item" 
+                                                                                    onclick="loadPlaylist({{ playlist.id }})">
+                                                                                <i class="bi bi-folder2-open me-2"></i>Open
+                                                                            </button>
+                                                                        </li>
+                                                                        <li>
+                                                                            <button class="dropdown-item"
+                                                                                    onclick="toggleSharePlaylist({{ playlist.id }}, this)">
+                                                                                <i class="bi bi-share me-2"></i>
+                                                                                {% if playlist.shared %}Unshare{% else %}Share{% endif %}
+                                                                            </button>
+                                                                        </li>
+                                                                    </ul>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    {% endfor %}
+                                                </div>
+                                            {% else %}
+                                                <div class="text-center text-muted py-4">
+                                                    <i class="bi bi-music-note-list fs-1 mb-2"></i>
+                                                    <p>No collections yet</p>
+                                                    <button class="btn btn-sm btn-primary" 
+                                                            data-bs-toggle="modal" 
+                                                            data-bs-target="#createPlaylistModal">
+                                                        Create First Collection
+                                                    </button>
+                                                </div>
+                                            {% endif %}
+                                        {% else %}
+                                            <div class="text-center text-muted py-4">
+                                                <i class="bi bi-person-lock fs-1 mb-2"></i>
+                                                <p>Please log in to see your collections</p>
+                                            </div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Column 2: Shared Playlists -->
+                            <div class="swipe-slide">
+                                <div class="card h-100">
+                                    <div class="card-header bg-success text-white">
+                                        <h6 class="mb-0"><i class="bi bi-globe me-2"></i>Shared Collections</h6>
+                                    </div>
+                                    <div class="card-body p-2">
+                                        {% if shared_playlists %}
+                                            <div class="shared-playlists-mobile">
+                                                {% for playlist in shared_playlists %}
+                                                <div class="card shared-playlist-card-mobile mb-2" 
+                                                     data-shared-playlist-id="{{ playlist.id }}"
+                                                     data-playlist-type="shared"
+                                                     style="cursor: pointer;">
+                                                    <div class="card-body p-2">
+                                                        <div class="d-flex justify-content-between align-items-start">
+                                                            <div class="flex-grow-1" onclick="console.log('Mobile card clicked'); event.stopPropagation(); window.location.href='{{ url_for('view_shared_playlist', playlist_id=playlist.id) }}'">
+                                                                <h6 class="mb-1">{{ playlist.name }}</h6>
+                                                                <p class="text-muted small mb-1">by {{ playlist.user.username }}</p>
+                                                                <p class="small mb-1">{{ playlist.description }}</p>
+                                                                <span class="badge bg-secondary small">{{ playlist.songs.count() }} hymns</span>
+                                                            </div>
+                                                            <a href="{{ url_for('view_shared_playlist', playlist_id=playlist.id) }}" 
+                                                               class="btn btn-sm btn-outline-primary ms-2 shared-playlist-link"
+                                                               data-no-intercept="true"
+                                                               data-playlist-type="shared">
+                                                                <i class="bi bi-folder2-open"></i>
+                                                            </a>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                {% endfor %}
+                                            </div>
+                                        {% else %}
+                                            <div class="text-center text-muted py-4">
+                                                <i class="bi bi-globe fs-1 mb-2"></i>
+                                                <p>No shared collections available</p>
+                                            </div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Column 3: Popular Tags -->
+                            <div class="swipe-slide">
+                                <div class="card h-100">
+                                    <div class="card-header bg-info text-white">
+                                        <h6 class="mb-0"><i class="bi bi-tags me-2"></i>Popular Tags</h6>
+                                    </div>
+                                    <div class="card-body p-2">
+                                        <div class="mb-3">
+                                            <h6 class="small">Filter Type</h6>
+                                            <div class="form-check form-check-inline">
+                                                <input class="form-check-input" type="radio" name="mobileOperator" id="mobileOperatorOr" checked>
+                                                <label class="form-check-label small" for="mobileOperatorOr">Any</label>
+                                            </div>
+                                            <div class="form-check form-check-inline">
+                                                <input class="form-check-input" type="radio" name="mobileOperator" id="mobileOperatorAnd">
+                                                <label class="form-check-label small" for="mobileOperatorAnd">All</label>
+                                            </div>
+                                        </div>
+                                        
+                                        <div class="tag-list-mobile">
+                                            {% for tag in tags %}
+                                            <div class="form-check mb-2">
+                                                <input class="form-check-input mobile-tag-checkbox-swipe" 
+                                                       type="checkbox" 
+                                                       value="{{ tag.tag }}" 
+                                                       id="swipeTag{{ loop.index }}">
+                                                <label class="form-check-label" for="swipeTag{{ loop.index }}">
+                                                    {{ tag.tag }}
+                                                </label>
+                                            </div>
+                                            {% endfor %}
+                                            
+                                            <div class="mt-3">
+                                                <button class="btn btn-sm btn-outline-danger w-100" 
+                                                        onclick="clearAllTagsMobile()">
+                                                    <i class="bi bi-x-circle me-2"></i>Clear All Tags
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Main Content -->                 
                 <div class="col-lg-9">
+                    <!-- Shared Playlists Section -->
+                    {% if shared_playlists %}
+                    <div class="mb-5">
+                        <h4 class="mb-3">🤝 Shared Collections</h4>
+                        <div class="shared-playlists-container d-flex overflow-auto pb-3 gap-3">
+                            {% for playlist in shared_playlists %}
+                            <div class="card shared-playlist-card" 
+                                 data-shared-playlist-id="{{ playlist.id }}" 
+                                 data-playlist-type="shared"
+                                 style="min-width: 300px; flex-shrink: 0;">
+                                <div class="card-body d-flex flex-column">
+                                    <div class="flex-grow-1">
+                                        <h5 class="card-title">{{ playlist.name }}</h5>
+                                        <p class="card-text text-muted small mb-1">by {{ playlist.user.username }}</p>
+                                        <p class="card-text small">{{ playlist.description }}</p>
+                                    </div>
+                                    <div class="mt-auto">
+                                        <span class="badge bg-secondary mb-2">{{ playlist.songs.count() }} hymns</span>
+                                        <div class="d-flex gap-2">
+                                            <a href="{{ url_for('view_shared_playlist', playlist_id=playlist.id) }}" 
+                                               class="btn btn-sm btn-primary w-100 shared-playlist-link"
+                                               data-no-intercept="true"
+                                               data-playlist-type="shared">
+                                                <i class="bi bi-folder2-open"></i> Open
+                                            </a>
+                                            {% set is_owner = current_user.is_authenticated and current_user.id == playlist.user_id %}
+                                            {% set is_admin = current_user.is_authenticated and ('admin' in current_user.roles|map(attribute='name')) %}
+                                            {% if is_owner or is_admin %}
+                                                <button class="btn btn-sm btn-outline-danger" onclick="deletePlaylist({{ playlist.id }})">
+                                                    <i class="bi bi-trash"></i>
+                                                </button>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endif %}
+                    <!-- End Shared Playlists Section -->
                     <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4" id="mezmurGrid">
                         {% for row in rows %}
                         <div class="col mezmur-card-container" data-lyrics="{{ row[3] }} {{ row[5] }}">
@@ -230,6 +477,17 @@
                                             <i class="bi bi-folder2-open me-2"></i>Open
                                         </button>
                                     </li>
+                                    <!-- Share Option -->
+                                    <li>
+                                        <button class="dropdown-item"
+                                                onclick="toggleSharePlaylist({{ playlist.id }}, this)">
+                                            <i class="bi bi-share me-2"></i>
+                                            <span class="share-text">
+                                                {% if playlist.shared %}Unshare{% else %}Share{% endif %}
+                                            </span>
+                                        </button>
+                                    </li>
+
                                     
                                     <!-- Delete Option -->
                                     {% if current_user.is_authenticated and ('admin' in current_user.roles or 'mezmur_editor' in current_user.roles) %}
@@ -249,11 +507,12 @@
             </div>
         </div>
     </div>
+    {% if current_user.is_authenticated and ('admin' in current_user.roles or 'mezmur_editor' in current_user.roles) %}
     <!-- Mobile Toggle Button -->
     <button id="addMezmurFAB" type="button" class="btn btn-primary btn-floating fab" data-bs-toggle="modal" data-bs-target="#addMezmurModal">
         <i class="bi bi-plus"></i>  <!-- Plus icon from Bootstrap Icons -->
       </button>
-      <!--Nav Filter
+    {% endif %}  <!--Nav Filter
     <a id="NavFilter"  class="btn btn-primary btn-floating fab" data-bs-toggle="modal" href="#searchInput">
         <i class="bi bi-funnel"></i>
     </a>-->

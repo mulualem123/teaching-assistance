@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Play All Function Test</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-icons/1.10.0/font/bootstrap-icons.min.css">
+</head>
+<body class="bg-light p-4">
+    <div class="container">
+        <h1>Play All Function Test</h1>
+        
+        <div class="row">
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">
+                        <h5>Test 1: Empty Playlist</h5>
+                    </div>
+                    <div class="card-body">
+                        <button class="btn btn-primary" onclick="testEmptyPlaylist()">
+                            Test Empty Playlist
+                        </button>
+                        <div id="test1-result" class="mt-2"></div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">
+                        <h5>Test 2: Playlist with Songs</h5>
+                    </div>
+                    <div class="card-body">
+                        <button class="btn btn-primary" onclick="testPlaylistWithSongs()">
+                            Test Playlist with Songs
+                        </button>
+                        <div id="test2-result" class="mt-2"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="row mt-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h5>Test 3: No Playlist Loaded</h5>
+                    </div>
+                    <div class="card-body">
+                        <button class="btn btn-primary" onclick="testNoPlaylistLoaded()">
+                            Test No Playlist Loaded
+                        </button>
+                        <div id="test3-result" class="mt-2"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="row mt-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h5>Console Output</h5>
+                    </div>
+                    <div class="card-body">
+                        <pre id="console-output" class="bg-dark text-white p-3" style="height: 300px; overflow-y: auto;"></pre>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Simulate the currentPlayer object
+        let currentPlayer = {
+            playlistId: null,
+            currentIndex: 0,
+            audioElement: null,
+            songs: []
+        };
+
+        // Mock functions
+        function showToast(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const consoleOutput = document.getElementById('console-output');
+            consoleOutput.innerHTML += `[${timestamp}] TOAST (${type}): ${message}\n`;
+            consoleOutput.scrollTop = consoleOutput.scrollHeight;
+        }
+
+        function skipToNextSong() {
+            const timestamp = new Date().toLocaleTimeString();
+            const consoleOutput = document.getElementById('console-output');
+            consoleOutput.innerHTML += `[${timestamp}] skipToNextSong() called\n`;
+            consoleOutput.scrollTop = consoleOutput.scrollHeight;
+        }
+
+        // The actual playAll function from mezmur.js
+        function playAll() {
+            console.log('Play All clicked');
+            console.log('currentPlayer:', currentPlayer);
+            
+            const timestamp = new Date().toLocaleTimeString();
+            const consoleOutput = document.getElementById('console-output');
+            consoleOutput.innerHTML += `[${timestamp}] playAll() called\n`;
+            consoleOutput.innerHTML += `[${timestamp}] currentPlayer: ${JSON.stringify(currentPlayer)}\n`;
+            
+            // Check if playlist is loaded
+            if (!currentPlayer.playlistId) {
+                showToast('No playlist loaded. Please open a playlist first.', 'warning');
+                return;
+            }
+            
+            // Check if playlist has songs
+            if (!currentPlayer.songs || currentPlayer.songs.length === 0) {
+                console.log('No songs found in currentPlayer.songs');
+                consoleOutput.innerHTML += `[${timestamp}] No songs found in currentPlayer.songs\n`;
+                showToast('This playlist is empty. Add some songs to start playing.', 'info');
+                return;
+            }
+
+            console.log('Found', currentPlayer.songs.length, 'songs in playlist');
+            consoleOutput.innerHTML += `[${timestamp}] Found ${currentPlayer.songs.length} songs in playlist\n`;
+
+            // Stop and remove any existing audio element to ensure a fresh start
+            if (currentPlayer.audioElement) {
+                currentPlayer.audioElement.pause();
+                // Remove listeners before removing element
+                currentPlayer.audioElement.onended = null;
+                currentPlayer.audioElement.onerror = null;
+                currentPlayer.audioElement.ontimeupdate = null;
+                currentPlayer.audioElement.onloadedmetadata = null;
+                currentPlayer.audioElement.remove();
+                currentPlayer.audioElement = null; // Nullify the reference
+                console.log("Removed previous audio element for Play All.");
+            }
+
+            // Reset index and start playback from the beginning
+            currentPlayer.currentIndex = -1; // Set to -1 so skipToNextSong starts correctly at 0
+            skipToNextSong(); // Use skipToNextSong to initialize and play the first song
+        }
+
+        // Test functions
+        function testEmptyPlaylist() {
+            // Reset currentPlayer to simulate empty playlist
+            currentPlayer = {
+                playlistId: 123,
+                currentIndex: 0,
+                audioElement: null,
+                songs: []
+            };
+            
+            document.getElementById('test1-result').innerHTML = '<p class="text-info">Testing empty playlist...</p>';
+            playAll();
+            document.getElementById('test1-result').innerHTML = '<p class="text-success">✓ Test completed - check console output</p>';
+        }
+
+        function testPlaylistWithSongs() {
+            // Reset currentPlayer to simulate playlist with songs
+            currentPlayer = {
+                playlistId: 456,
+                currentIndex: 0,
+                audioElement: null,
+                songs: [
+                    { id: 1, title: 'Test Song 1', audio_url: '/audio/1' },
+                    { id: 2, title: 'Test Song 2', audio_url: '/audio/2' },
+                    { id: 3, title: 'Test Song 3', audio_url: '/audio/3' }
+                ]
+            };
+            
+            document.getElementById('test2-result').innerHTML = '<p class="text-info">Testing playlist with 3 songs...</p>';
+            playAll();
+            document.getElementById('test2-result').innerHTML = '<p class="text-success">✓ Test completed - check console output</p>';
+        }
+
+        function testNoPlaylistLoaded() {
+            // Reset currentPlayer to simulate no playlist loaded
+            currentPlayer = {
+                playlistId: null,
+                currentIndex: 0,
+                audioElement: null,
+                songs: []
+            };
+            
+            document.getElementById('test3-result').innerHTML = '<p class="text-info">Testing no playlist loaded...</p>';
+            playAll();
+            document.getElementById('test3-result').innerHTML = '<p class="text-success">✓ Test completed - check console output</p>';
+        }
+
+        // Clear console on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            const consoleOutput = document.getElementById('console-output');
+            consoleOutput.innerHTML = 'Test environment ready. Click buttons above to test different scenarios.\n';
+        });
+    </script>
+</body>
+</html>

@@ -43,3 +43,10 @@ This sets the email and name for the current repository.  However, if you're NOT
   docker run -d -p 5000:5000 -dit --memory="1.5g" --memory-reservation="512m" --cpus="2.0" teaching-assistance-06
   docker logs adoring_leavitt
   docker stop adoring_leavitt
+
+# Set environment variables
+$env:ADMIN_EMAIL = 'your-admin-email@example.com'
+$env:ADMIN_PASSWORD = 'your-new-password'
+
+# Reset password
+flask --app flask_package reset-admin-password

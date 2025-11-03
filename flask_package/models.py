@@ -22,6 +22,7 @@ class Playlist(db.Model):
     description = db.Column(db.Text)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     songs = db.relationship('PlaylistSong', backref='playlist', lazy='dynamic')
+    shared = db.Column(db.Boolean, default=False, nullable=False)
     
 class PlaylistSong(db.Model):
     __tablename__ = 'playlist_song'

@@ -16,6 +16,25 @@
           <li class="nav-item">
             <a class="nav-link {% block activeTranslate %}{% endblock  %}" href="{{url_for('translate')}}">Translate</a>
           </li>
+          {% if current_user.is_authenticated %}
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle {% block activePlaylist %}{% endblock  %}" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+              <i class="bi bi-collection-play me-1"></i>Playlists
+            </a>
+            <ul class="dropdown-menu">
+              <li><a class="dropdown-item" href="{{ url_for('view_playlists') }}">
+                <i class="bi bi-collection me-2"></i>My Playlists
+              </a></li>
+              <li><a class="dropdown-item" href="{{ url_for('create_playlist') }}">
+                <i class="bi bi-plus-circle me-2"></i>Create Playlist
+              </a></li>
+              <li><hr class="dropdown-divider"></li>
+              <li><a class="dropdown-item" href="{{ url_for('discover_playlists') }}">
+                <i class="bi bi-compass me-2"></i>Discover Shared Collections
+              </a></li>
+            </ul>
+          </li>
+          {% endif %}
           {% if current_user.is_authenticated and 'admin' in current_user.roles %}
           <li class="nav-item">
             <a class="nav-link {% block activeCalender %}{% endblock  %}" aria-current="page" href="{{url_for('calendar')}}">Calendar</a>
@@ -57,8 +76,14 @@
           </li>
           {% endif %}
           {% if current_user.is_authenticated%}
-          <li class="nav-item">
-            <a class="nav-link {% block activeLogout %}{% endblock  %}" href={{url_for('logout')}}><i class="bi bi-box-arrow-left"></i> Logout</a>
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle" href="#" id="navbarDropdownMenuLink" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+              <i class="bi bi-person-circle"></i>
+            </a>
+            <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="navbarDropdownMenuLink">
+              <li><a class="dropdown-item" href="#">Profile</a></li>
+              <li><a class="dropdown-item" href="{{url_for('logout')}}">Logout</a></li>
+            </ul>
           </li>
           {% endif %}
         </ul>

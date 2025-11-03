@@ -173,3 +173,20 @@ DATABASE
         initialization in models.py
             from flask_sqlalchemy import SQLAlchemy
             db = SQLAlchemy()
+
+#Initial admin
+            #Bash use the following export variables to set up Admin Email and Admin Password
+                #export ADMIN_EMAIL='admin@example.com'
+                #export ADMIN_PASSWORD='your_secure_password'
+            #powershell
+                #$env:ADMIN_EMAIL = 'mulualem.hailom@gmail.com'
+                #$env:ADMIN_PASSWORD = 'changeme'
+                # Get-ChildItem Env:ADMIN_EMAIL
+                # Get-ChildItem Env:ADMIN_PASSWORD
+
+# Set environment variables
+$env:ADMIN_EMAIL = 'your-admin-email@example.com'
+$env:ADMIN_PASSWORD = 'your-new-password'
+
+# Reset password
+flask --app flask_package reset-admin-password

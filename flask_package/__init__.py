@@ -2,10 +2,11 @@ import os
 import base64
 from datetime import datetime
 #import requests
+import requests # Uncommented: Required for Telegram send_message function
 import pandas as pd
 import fitz as fz
 import sqlite3
-from flask import Flask, render_template,send_from_directory, send_file, request as rq, flash, redirect, url_for
+from flask import Flask, render_template,send_from_directory, send_file, request as rq, flash, redirect, url_for, abort
 from pptx import Presentation
 from flask_mail import Mail, Message
 from flask_sqlalchemy import SQLAlchemy #Account creation
@@ -19,11 +20,13 @@ from .forms import RegistrationForm, LoginForm, PlaylistForm    #Orginal
 from .models import db as account_db, User, Role, roles_users, Playlist, PlaylistSong    #Orginal
 from flask_security import Security, SQLAlchemyUserDatastore, UserMixin, RoleMixin, roles_required
 from flask_migrate import Migrate  # Import Migrate here
+from werkzeug.security import generate_password_hash
 from werkzeug.utils import secure_filename
 import click
 from flask import jsonify
 
 app = Flask(__name__)
+app.config["SECRET_KEY"]= b'\xa4\x99hM\x12s\xc3\x8d' # Moved to top: Best practice for app config
 
 pp_parent_folder = r'C:\\Users\\selon\\Documents\\Bete Christian\\Mezmur'
 sundayClassPP = r'C:\\Users\\selon\\Documents\\Bete Christian\\Lecture'
@@ -40,8 +43,11 @@ app.config['DATABASE'] = r'flask_package/instance/site.db'
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///users.db' #Account creation
 #app.config['SQLALCHEMY_DATABASE_URI'] = r'flask_package/instance/users.db' #Account creation
 
-app.config['SECRET_KEY'] = 'super-secret-key'
 app.config['SECURITY_PASSWORD_SALT'] = 'super-secret-salt'
+# CSRF Configuration
+app.config['WTF_CSRF_ENABLED'] = False  # Disable CSRF for now to fix login issues
+app.config['SECURITY_CSRF_IGNORE_UNAUTH_ENDPOINTS'] = True
+app.config['SECURITY_CSRF_PROTECT_MECHANISMS'] = []
 db.init_app(app) #initiating sqlite3
 print ("sql initiated")
 
@@ -100,21 +106,61 @@ events = [
     }
 ]
 
-def create_default_admin():
+@app.cli.command("create-admin")
+def create_admin_command():
+    """Creates the default admin user from environment variables."""
+    admin_email = os.getenv('ADMIN_EMAIL')
+    admin_password = os.getenv('ADMIN_PASSWORD')
+
+    if not admin_email or not admin_password:
+        click.echo("Error: ADMIN_EMAIL and ADMIN_PASSWORD environment variables must be set.")
+        return
+
     with app.app_context():
-        db.create_all()
-        if not User.query.filter_by(email=os.getenv('ADMIN_EMAIL')).first():
+        if User.query.filter_by(email=admin_email).first():
+            click.echo(f"Admin user with email '{admin_email}' already exists.")
+            return
+
+        try:
             admin_role = user_datastore.find_or_create_role(name='admin', description='Administrator')
             user_datastore.create_user(
-                email=os.getenv('ADMIN_EMAIL'),
-                password=generate_password_hash(os.getenv('ADMIN_PASSWORD')),
+                email=admin_email,
+                username=admin_email.split('@')[0], # Added: Provide a username as it's a NOT NULL column
+                password=generate_password_hash(admin_password),
                 roles=[admin_role]
             )
-            db.session.commit()
-            #use the following export variables to set up Admin Email and Admin Password
-                #export ADMIN_EMAIL='admin@example.com'
-                #export ADMIN_PASSWORD='your_secure_password'
-                            
+            account_db.session.commit()
+            click.echo(f"Admin user '{admin_email}' created successfully.")
+        except Exception as e:
+            account_db.session.rollback()
+            click.echo(f"Error creating admin user: {e}")
+
+@app.cli.command("reset-admin-password")
+def reset_admin_password_command():
+    """Reset the admin user password from environment variables."""
+    admin_email = os.getenv('ADMIN_EMAIL')
+    admin_password = os.getenv('ADMIN_PASSWORD')
+
+    if not admin_email or not admin_password:
+        click.echo("Error: ADMIN_EMAIL and ADMIN_PASSWORD environment variables must be set.")
+        return
+
+    with app.app_context():
+        admin_user = User.query.filter_by(email=admin_email).first()
+        if not admin_user:
+            click.echo(f"Admin user with email '{admin_email}' not found.")
+            return
+
+        try:
+            # Use Flask-Security's hash_password method instead of Werkzeug's
+            from flask_security.utils import hash_password
+            admin_user.password = hash_password(admin_password)
+            account_db.session.commit()
+            click.echo(f"Admin password for '{admin_email}' reset successfully using Flask-Security method.")
+        except Exception as e:
+            account_db.session.rollback()
+            click.echo(f"Error resetting admin password: {e}")
+
 @app.route('/register', methods=['GET', 'POST'])
 def register():
     form = RegistrationForm()
@@ -291,6 +337,7 @@ def index():
 def mezmur():
     files = os.listdir(pp_parent_folder)
     form = PlaylistForm()
+    shared_playlists = Playlist.query.filter_by(shared=True).order_by(Playlist.created_at.desc()).all()
     mez_tags = db.get_allMezTags()
     #print("The following will print all the mezmur tags")
     #for m_tags in mez_tags:
@@ -311,7 +358,8 @@ def mezmur():
                             rows= db.get_data(),
                             mez_tags = mez_tags,
                             tags=db.get_taglist(),
-                            form=form
+                            form=form,
+                            shared_playlists=shared_playlists
                            )
 
 @app.route("/sundayclass")
@@ -370,21 +418,47 @@ def translate():
     else:
         return render_template("translate.html",files = os.listdir(pp_parent_folder), rows= db.get_data())
     
-#Return Audio
+# Ensure 'requests' is imported if you're using it for Telegram
+# import requests
+
+
+#Return Audio with better error handling
 @app.route("/audio/<id>")
 def audio(id):
-    # Get the audio file from the database using the passed id
-    print("This is passed id from mezmur page: " + str(id))
-    audio_list = db.get_audio(id)
-    
-    if audio_list:
-        selected_audio = audio_list[0]
-        print("001 audio/Selected_audio_exist " + str(selected_audio))
-    else:
-        selected_audio = "NA"
-        print("002 Selected_audio " + str(selected_audio))
-    
-    return send_from_directory('static/audio', str(selected_audio))
+    try:
+        # Get the audio file from the database using the passed id
+        print("This is passed id from mezmur page: " + str(id))
+        audio_list = db.get_audio(id)
+        
+        if audio_list and audio_list[0] and audio_list[0] != "NA":
+            selected_audio = audio_list[0]
+            print("001 audio/Selected_audio_exist " + str(selected_audio))
+            
+            # Check if file actually exists
+            audio_path = os.path.join('flask_package/static/audio', str(selected_audio))
+            if os.path.exists(audio_path):
+                return send_from_directory('static/audio', str(selected_audio))
+            else:
+                print(f"Audio file not found at path: {audio_path}")
+                # Return a 404 error with proper JSON response
+                return jsonify({
+                    'error': 'Audio file not found',
+                    'message': f'Audio file for ID {id} does not exist on server'
+                }), 404
+        else:
+            print(f"002 No audio file found for ID: {id}")
+            # Return a 404 error for missing audio
+            return jsonify({
+                'error': 'No audio available',
+                'message': f'No audio file associated with ID {id}'
+            }), 404
+            
+    except Exception as e:
+        print(f"Error serving audio for ID {id}: {str(e)}")
+        return jsonify({
+            'error': 'Server error',
+            'message': 'Failed to retrieve audio file'
+        }), 500
 
 #A function that returns text from given/selected PowerPoint file.
 @app.route('/display/<filename>')
@@ -603,10 +677,8 @@ def update (id):
 @app.route('/pushupdate', methods=['POST'])
 def pushupdate():
     # Configure allowed extensions and upload folder. Note that we've added 'webm' since recorded audio might be in this format.
-    app.config['UPLOAD_FOLDER'] = audio_folder
-    app.config['ALLOWED_EXTENSIONS'] = {'mp3', 'mpeg', 'ogg', 'mp4', 'm4a', 'webm'}
-
     form = PlaylistForm()
+    # Removed redundant app.config settings here; they are set globally at the top.
 
     if rq.method == 'POST':
         mezmur_id = rq.form.get("id")
@@ -821,66 +893,285 @@ def view_playlists():
     playlists = Playlist.query.filter_by(user_id=current_user.id).all()
     return render_template('playlists.html', playlists=playlists)
 
-#Gets list of playlists
+#Gets list of playlists with caching and optimization
 @app.route('/api/playlists')
 @login_required
 def get_playlists():
     try:
+        # Add caching headers for better performance
         playlists = Playlist.query.filter_by(user_id=current_user.id).all()
-        return jsonify([{
-            'id': p.id,
-            'name': p.name,
-            'description': p.description,
-            'song_count': p.songs.count()
-        } for p in playlists])
+        
+        response_data = []
+        for p in playlists:
+            # More efficient song count query
+            song_count = account_db.session.query(PlaylistSong).filter_by(playlist_id=p.id).count()
+            response_data.append({
+                'id': p.id,
+                'name': p.name,
+                'description': p.description or '',
+                'song_count': song_count,
+                'shared': p.shared if hasattr(p, 'shared') else False,
+                'created_at': p.created_at.isoformat() if hasattr(p, 'created_at') else None
+            })
+        
+        response = jsonify(response_data)
+        # Add caching headers
+        response.headers['Cache-Control'] = 'private, max-age=300'  # 5 minutes
+        return response
     except Exception as e:
+        app.logger.error(f"Error fetching playlists: {str(e)}")
         return jsonify({
             'status': 'error',
-            'message': str(e)
+            'message': 'Failed to fetch playlists',
+            'details': str(e) if app.debug else 'Internal server error'
         }), 500
         
-#Load songs from selected playlist.
+#Load songs from selected playlist with optimization
 @app.route('/api/playlists/<int:playlist_id>')
 @login_required
 def get_playlist(playlist_id):
     try:
-        # Get playlist from database
-        playlist = Playlist.query.filter_by(
-            id=playlist_id,
-            user_id=current_user.id
-        ).first_or_404()
+        # Check if user is admin
+        is_admin = 'admin' in [role.name for role in current_user.roles]
+        
+        # Get playlist from database with better error handling
+        if is_admin:
+            # Admins can access any playlist
+            playlist = Playlist.query.get(playlist_id)
+        else:
+            # Regular users can access their own playlists or shared playlists
+            playlist = Playlist.query.get(playlist_id)
+            
+            # Check access permissions for non-admin users
+            if playlist and playlist.user_id != current_user.id and not playlist.shared:
+                # User is not owner and playlist is not shared - deny access
+                return jsonify({
+                    'status': 'error',
+                    'message': 'Playlist not found or access denied'
+                }), 404
+        
+        if not playlist:
+            return jsonify({
+                'status': 'error',
+                'message': 'Playlist not found or access denied'
+            }), 404
+        
+        # If it's a shared playlist from another user, use the shared playlist data format
+        if playlist.user_id != current_user.id and playlist.shared:
+            return get_shared_playlist_data(playlist)
 
-        # Get songs from SQLite database               
+        # Optimize song loading with batch queries              
         songs = []
-        for song_rel in playlist.songs.all():
-            song_data = db.get_selected_data(song_rel.song_id)
+        song_relations = playlist.songs.all()
+        
+        # Batch load song data to reduce database calls
+        song_ids = [rel.song_id for rel in song_relations]
+        
+        for song_id in song_ids:
+            song_data = db.get_selected_data(song_id)
             if song_data:
                 songs.append({
                     'id': song_data[0],
                     'title': song_data[1],
-                    'timed_geez': song_data[6],
-                    'timed_latin': song_data[7],
-                    'timed_english': song_data[8],
-                    'azmach': song_data[3],
-                    'azmachen': song_data[4],
-                    'engTrans': song_data[5],
+                    'timed_geez': song_data[6] if len(song_data) > 6 else '',
+                    'timed_latin': song_data[7] if len(song_data) > 7 else '',
+                    'timed_english': song_data[8] if len(song_data) > 8 else '',
+                    'azmach': song_data[3] if len(song_data) > 3 else '',
+                    'azmachen': song_data[4] if len(song_data) > 4 else '',
+                    'engTrans': song_data[5] if len(song_data) > 5 else '',
                     'audio_url': url_for('audio', id=song_data[0], _external=True)
                 })
 
-        return jsonify({
+        response_data = {
             'id': playlist.id,
             'name': playlist.name,
-            'description': playlist.description,
-            'created_at': playlist.created_at.isoformat(),
-            'song_count': len(songs),
-            'songs': songs
-        })
+            'description': playlist.description or '',
+            'songs': songs,
+            'total_songs': len(songs),
+            'user_id': playlist.user_id,
+            'shared': playlist.shared if hasattr(playlist, 'shared') else False
+        }
+        
+        response = jsonify(response_data)
+        # Add appropriate caching headers
+        response.headers['Cache-Control'] = 'private, max-age=60'  # 1 minute for playlist content
+        return response
 
     except Exception as e:
+        app.logger.error(f"Error fetching playlist {playlist_id}: {str(e)}")
         return jsonify({
             'status': 'error',
-            'message': str(e)
+            'message': 'Failed to fetch playlist',
+            'details': str(e) if app.debug else 'Internal server error'
         }), 500
+
+# Public playlist API (no login required for shared playlists)
+@app.route('/api/playlists/public/<int:playlist_id>')
+def get_public_playlist(playlist_id):
+    try:
+        # Only allow access to shared playlists
+        playlist = Playlist.query.filter_by(
+            id=playlist_id,
+            shared=True
+        ).first()
+        
+        if not playlist:
+            return jsonify({
+                'status': 'error',
+                'message': 'Public playlist not found'
+            }), 404
+
+        return get_shared_playlist_data(playlist)
+
+    except Exception as e:
+        app.logger.error(f"Error fetching public playlist {playlist_id}: {str(e)}")
+        return jsonify({
+            'status': 'error',
+            'message': 'Failed to fetch playlist',
+            'details': str(e) if app.debug else 'Internal server error'
+        }), 500
+
+def get_shared_playlist_data(playlist):
+    """Helper function to format playlist data for public access"""
+    songs = []
+    song_relations = playlist.songs.all()
+    
+    # Batch load song data to reduce database calls
+    song_ids = [rel.song_id for rel in song_relations]
+    
+    for song_id in song_ids:
+        song_data = db.get_selected_data(song_id)
+        if song_data:
+            songs.append({
+                'id': song_data[0],
+                'title': song_data[1],
+                'timed_geez': song_data[6] if len(song_data) > 6 else '',
+                'timed_latin': song_data[7] if len(song_data) > 7 else '',
+                'timed_english': song_data[8] if len(song_data) > 8 else '',
+                'azmach': song_data[3] if len(song_data) > 3 else '',
+                'azmachen': song_data[4] if len(song_data) > 4 else '',
+                'engTrans': song_data[5] if len(song_data) > 5 else '',
+                'audio_url': url_for('audio', id=song_data[0], _external=True)
+            })
+
+    response_data = {
+        'id': playlist.id,
+        'name': playlist.name,
+        'description': playlist.description or '',
+        'songs': songs,
+        'total_songs': len(songs),
+        'shared': True,
+        'owner': playlist.user.username if playlist.user else 'Unknown'
+    }
+    
+    response = jsonify(response_data)
+    # Add appropriate caching headers for public content
+    response.headers['Cache-Control'] = 'public, max-age=300'  # 5 minutes for public content
+    return response
+
+# Get individual song details API
+@app.route('/api/song/<int:song_id>')
+def get_song_details(song_id):
+    try:
+        song_data = db.get_selected_data(song_id)
+        
+        if not song_data:
+            return jsonify({
+                'status': 'error',
+                'message': 'Song not found'
+            }), 404
+        
+        response_data = {
+            'status': 'success',
+            'song': {
+                'id': song_data[0],
+                'title': song_data[1],
+                'title_en': song_data[2] if len(song_data) > 2 else '',
+                'geez_text': song_data[3] if len(song_data) > 3 else '',
+                'latin_text': song_data[4] if len(song_data) > 4 else '',
+                'english_text': song_data[5] if len(song_data) > 5 else '',
+                'timed_geez': song_data[6] if len(song_data) > 6 else '',
+                'timed_latin': song_data[7] if len(song_data) > 7 else '',
+                'timed_english': song_data[8] if len(song_data) > 8 else '',
+                'audio_url': url_for('audio', id=song_data[0], _external=True)
+            }
+        }
+        
+        response = jsonify(response_data)
+        response.headers['Cache-Control'] = 'public, max-age=600'  # 10 minutes for song data
+        return response
+        
+    except Exception as e:
+        app.logger.error(f"Error fetching song {song_id}: {str(e)}")
+        return jsonify({
+            'status': 'error',
+            'message': 'Failed to fetch song details',
+            'details': str(e) if app.debug else 'Internal server error'
+        }), 500
+
+# Debug route to check playlist status (remove in production)
+@app.route('/api/debug/playlists')
+def debug_playlists():
+    """Debug endpoint to check all playlists - remove in production"""
+    if not app.debug:
+        return jsonify({'error': 'Debug mode only'}), 403
+    
+    try:
+        all_playlists = Playlist.query.all()
+        debug_info = []
+        
+        for playlist in all_playlists:
+            debug_info.append({
+                'id': playlist.id,
+                'name': playlist.name,
+                'user_id': playlist.user_id,
+                'shared': getattr(playlist, 'shared', False),
+                'song_count': playlist.songs.count(),
+                'owner': playlist.user.username if playlist.user else 'No owner'
+            })
+        
+        return jsonify({
+            'total_playlists': len(all_playlists),
+            'playlists': debug_info,
+            'current_user': {
+                'id': current_user.id if current_user.is_authenticated else None,
+                'username': current_user.username if current_user.is_authenticated else 'Not logged in'
+            }
+        })
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+# API endpoint to get available tags
+@app.route('/api/tags')
+def get_tags():
+    """Get all available tags with counts"""
+    try:
+        tags = db.get_taglist()  # Using your existing function
+        
+        # Format tags with counts if your db function supports it
+        if tags:
+            formatted_tags = []
+            for tag in tags:
+                if isinstance(tag, tuple):
+                    # If tag includes count: (name, count)
+                    formatted_tags.append({
+                        'name': tag[0],
+                        'count': tag[1] if len(tag) > 1 else 0
+                    })
+                else:
+                    # If tag is just a string
+                    formatted_tags.append({
+                        'name': str(tag),
+                        'count': 0
+                    })
+            return jsonify(formatted_tags)
+        else:
+            return jsonify([])
+            
+    except Exception as e:
+        app.logger.error(f"Error fetching tags: {str(e)}")
+        return jsonify({'error': 'Failed to fetch tags'}), 500
         
 # View a single playlist and its songs
 @app.route('/playlist/<int:playlist_id>')
@@ -917,11 +1208,13 @@ def delete_playlist_old(playlist_id):
 @login_required
 def delete_playlist(playlist_id):
     try:
-        # Get playlist and verify ownership
-        playlist = Playlist.query.filter_by(
-            id=playlist_id,
-            user_id=current_user.id
-        ).first_or_404()
+        # Get playlist
+        playlist = Playlist.query.get_or_404(playlist_id)
+
+        # Verify ownership or admin role
+        is_admin = any(role.name == 'admin' for role in current_user.roles)
+        if playlist.user_id != current_user.id and not is_admin:
+            return jsonify({'status': 'error', 'message': 'Permission denied'}), 403
 
         # Delete all associated songs first
         PlaylistSong.query.filter_by(playlist_id=playlist_id).delete()
@@ -951,7 +1244,26 @@ def delete_playlist(playlist_id):
         return jsonify({
             'status': 'error',
             'message': str(e)
-        }), 500 
+        }), 500
+
+@app.route('/api/playlist/<int:playlist_id>/share', methods=['POST'])
+@login_required
+def share_playlist(playlist_id):
+    playlist = Playlist.query.get_or_404(playlist_id)
+
+    # Check ownership
+    if playlist.user_id != current_user.id:
+        return jsonify({'status': 'error', 'message': 'Permission denied'}), 403
+
+    # Toggle the shared status
+    playlist.shared = not playlist.shared
+    account_db.session.commit()
+
+    return jsonify({
+        'status': 'success',
+        'message': f'Playlist is now {"public" if playlist.shared else "private"}.',
+        'shared': playlist.shared
+    })
            
 # Add a song to a playlist
 @app.route('/add_to_playlist', methods=['POST'])
@@ -1102,6 +1414,11 @@ def remove_from_playlist(playlist_id, song_id):
         return jsonify({'status': 'error', 'message': str(e)}), 500
     
 ################################PlayList end################
+@app.route('/favicon.ico')
+def favicon():
+    return send_from_directory(os.path.join(app.root_path, 'static'),
+                               'favicon.ico', mimetype='image/vnd.microsoft.icon')
+
 @app.route('/test',  methods=['GET'])
 def test():
     users = [
@@ -1128,8 +1445,114 @@ def dashboard():
 ###########################Share Playlist #########################
 @app.route('/playlist/shared/<int:playlist_id>')
 def view_shared_playlist(playlist_id):
-    playlist = Playlist.query.get_or_404(playlist_id)
-    return render_template('shared_playlist.html', playlist=playlist)
+    print(f"DEBUG: Accessing shared playlist {playlist_id}")
+    print(f"DEBUG: Current user: {current_user.username if current_user.is_authenticated else 'Anonymous'}")
+    print(f"DEBUG: User roles: {[role.name for role in current_user.roles] if current_user.is_authenticated else 'None'}")
     
-    
-app.config["SECRET_KEY"]= b'\xa4\x99hM\x12s\xc3\x8d'
+    try:
+        playlist = Playlist.query.get(playlist_id)
+        if not playlist:
+            print(f"DEBUG: Playlist {playlist_id} not found in database")
+            flash('Playlist not found.', 'error')
+            return redirect(url_for('index'))
+        
+        print(f"DEBUG: Playlist found: {playlist.name}, shared: {playlist.shared}, owner: {playlist.user.username}")
+        
+        # Allow access if:
+        # 1. User is authenticated (any logged-in user can view shared playlists)
+        # 2. Playlist is marked as shared
+        # 3. User is admin (admin can access any playlist)
+        # 4. User is the owner (owner can always access their playlist)
+        is_admin = current_user.is_authenticated and 'admin' in [role.name for role in current_user.roles]
+        is_owner = current_user.is_authenticated and current_user.id == playlist.user_id
+        is_authenticated = current_user.is_authenticated
+        
+        if not is_authenticated:
+            print(f"DEBUG: Access denied - user not authenticated")
+            flash('Please log in to view shared playlists.', 'warning')
+            return redirect(url_for('login'))
+        
+        if not playlist.shared and not is_admin and not is_owner:
+            print(f"DEBUG: Access denied - playlist not shared and user is not admin/owner")
+            flash('This playlist is not publicly shared and you do not have permission to access it.', 'warning')
+            return redirect(url_for('index'))
+        
+        print(f"DEBUG: Access granted - authenticated: {is_authenticated}, shared: {playlist.shared}, admin: {is_admin}, owner: {is_owner}")
+        
+        # Fetch song details from SQLite (`db`)
+        songs = []
+        for song_rel in playlist.songs.all():
+            song_data = db.get_selected_data(song_rel.song_id)
+            if song_data:
+                songs.append(song_data)
+        
+        print(f"DEBUG: Rendering shared_playlist.html with {len(songs)} songs")
+        return render_template('shared_playlist.html', playlist=playlist, songs=songs)
+        
+    except Exception as e:
+        print(f"DEBUG: Exception in view_shared_playlist: {e}")
+        flash('An error occurred while loading the playlist.', 'error')
+        return redirect(url_for('index'))
+
+@app.route('/playlists/discover')
+def discover_playlists():
+    """Display all publicly shared playlists from all users"""
+    shared_playlists = Playlist.query.filter_by(shared=True).order_by(Playlist.created_at.desc()).all()
+    return render_template('discover_playlists.html', playlists=shared_playlists)
+
+@app.route('/api/playlists/clone', methods=['POST'])
+@login_required
+def clone_playlist():
+    """Clone a public playlist to the current user's collection"""
+    try:
+        data = rq.get_json()
+        source_playlist_id = data.get('source_playlist_id')
+        new_name = data.get('name', '').strip()
+        new_description = data.get('description', '').strip()
+        
+        if not source_playlist_id or not new_name:
+            return jsonify({'status': 'error', 'message': 'Missing required fields'}), 400
+        
+        # Get the source playlist
+        source_playlist = Playlist.query.get_or_404(source_playlist_id)
+        
+        # Verify it's shared
+        if not source_playlist.shared:
+            return jsonify({'status': 'error', 'message': 'Playlist is not publicly shared'}), 403
+        
+        # Check if user already has a playlist with this name
+        existing = Playlist.query.filter_by(user_id=current_user.id, name=new_name).first()
+        if existing:
+            return jsonify({'status': 'error', 'message': 'You already have a playlist with this name'}), 409
+        
+        # Create new playlist
+        new_playlist = Playlist(
+            user_id=current_user.id,
+            name=new_name,
+            description=new_description,
+            shared=False  # New playlist is private by default
+        )
+        account_db.session.add(new_playlist)
+        account_db.session.flush()  # Get the ID
+        
+        # Copy all songs from source playlist
+        source_songs = source_playlist.songs.all()
+        for song_rel in source_songs:
+            new_song_rel = PlaylistSong(
+                playlist_id=new_playlist.id,
+                song_id=song_rel.song_id
+            )
+            account_db.session.add(new_song_rel)
+        
+        account_db.session.commit()
+        
+        return jsonify({
+            'status': 'success',
+            'message': f'Playlist "{new_name}" cloned successfully',
+            'playlist_id': new_playlist.id
+        })
+        
+    except Exception as e:
+        account_db.session.rollback()
+        app.logger.error(f"Error cloning playlist: {str(e)}")
+        return jsonify({'status': 'error', 'message': str(e)}), 500

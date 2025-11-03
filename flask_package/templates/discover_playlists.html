@@ -1,0 +1,262 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <div>
+                    <h2><i class="bi bi-compass me-2"></i>Discover Shared Collections</h2>
+                    <p class="text-muted mb-0">Explore playlists shared by the ZimareYared community</p>
+                </div>
+                <a href="{{ url_for('view_playlists') }}" class="btn btn-outline-primary">
+                    <i class="bi bi-arrow-left me-2"></i>Back to My Playlists
+                </a>
+            </div>
+
+            {% if playlists %}
+                <div class="row" id="discover-playlists-container">
+                    {% for playlist in playlists %}
+                        <div class="col-md-6 col-lg-4 mb-4">
+                            <div class="card playlist-card h-100">
+                                <div class="card-body d-flex flex-column">
+                                    <div class="d-flex justify-content-between align-items-start mb-3">
+                                        <h5 class="card-title">
+                                            <a href="{{ url_for('view_shared_playlist', playlist_id=playlist.id) }}" 
+                                               class="text-decoration-none">
+                                                {{ playlist.name }}
+                                            </a>
+                                        </h5>
+                                        <span class="badge bg-success">
+                                            <i class="bi bi-people me-1"></i>Shared
+                                        </span>
+                                    </div>
+                                    
+                                    <p class="card-text text-muted flex-grow-1">
+                                        {{ playlist.description or 'No description' }}
+                                    </p>
+                                    
+                                    <div class="mt-auto">
+                                        <div class="d-flex justify-content-between align-items-center mb-3">
+                                            <small class="text-muted">
+                                                <i class="bi bi-music-note me-1"></i>{{ playlist.songs.count() }} songs
+                                            </small>
+                                            <small class="text-muted">
+                                                <i class="bi bi-person me-1"></i>{{ playlist.user.username if playlist.user else 'Unknown' }}
+                                            </small>
+                                        </div>
+                                        
+                                        <div class="d-flex gap-2">
+                                            <a href="{{ url_for('view_shared_playlist', playlist_id=playlist.id) }}" 
+                                               class="btn btn-primary btn-sm flex-fill shared-playlist-link"
+                                               data-no-intercept="true">
+                                                <i class="bi bi-play-fill me-1"></i>Play
+                                            </a>
+                                            <button class="btn btn-outline-secondary btn-sm copy-link-btn" 
+                                                    data-playlist-id="{{ playlist.id }}" 
+                                                    title="Copy Share Link">
+                                                <i class="bi bi-share"></i>
+                                            </button>
+                                            {% if current_user.is_authenticated %}
+                                            <button class="btn btn-outline-success btn-sm clone-playlist-btn" 
+                                                    data-playlist-id="{{ playlist.id }}" 
+                                                    data-playlist-name="{{ playlist.name }}"
+                                                    title="Clone to My Playlists">
+                                                <i class="bi bi-files"></i>
+                                            </button>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+                
+                <!-- Pagination could be added here if needed -->
+                {% if playlists|length > 12 %}
+                <nav aria-label="Playlists pagination" class="mt-4">
+                    <ul class="pagination justify-content-center">
+                        <li class="page-item disabled">
+                            <span class="page-link">Previous</span>
+                        </li>
+                        <li class="page-item active">
+                            <span class="page-link">1</span>
+                        </li>
+                        <li class="page-item disabled">
+                            <span class="page-link">Next</span>
+                        </li>
+                    </ul>
+                </nav>
+                {% endif %}
+                
+            {% else %}
+                <div class="text-center py-5">
+                    <i class="bi bi-compass display-1 text-muted"></i>
+                    <h4 class="mt-3 text-muted">No public playlists yet</h4>
+                    <p class="text-muted">Be the first to share a playlist publicly!</p>
+                    <a href="{{ url_for('view_playlists') }}" class="btn btn-primary">
+                        <i class="bi bi-collection-play me-2"></i>Go to My Playlists
+                    </a>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Clone Playlist Modal -->
+{% if current_user.is_authenticated %}
+<div class="modal fade" id="cloneModal" tabindex="-1" aria-labelledby="cloneModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="cloneModalLabel">Clone Playlist</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>Create a copy of this playlist in your collection?</p>
+                <div class="mb-3">
+                    <label for="clonePlaylistName" class="form-label">Playlist Name</label>
+                    <input type="text" class="form-control" id="clonePlaylistName" placeholder="Enter playlist name">
+                </div>
+                <div class="mb-3">
+                    <label for="clonePlaylistDescription" class="form-label">Description (optional)</label>
+                    <textarea class="form-control" id="clonePlaylistDescription" rows="3" 
+                              placeholder="Enter description"></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-success" id="confirmCloneBtn">
+                    <i class="bi bi-files me-2"></i>Clone Playlist
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Ensure shared playlist links work without JavaScript interference
+    document.querySelectorAll('.shared-playlist-link').forEach(link => {
+        link.addEventListener('click', function(e) {
+            // Allow natural navigation - don't prevent default
+            console.log('Navigating to shared playlist:', this.href);
+        });
+    });
+
+    // Copy share link functionality
+    const copyLinkButtons = document.querySelectorAll('.copy-link-btn');
+    copyLinkButtons.forEach(button => {
+        button.addEventListener('click', function() {
+            const playlistId = this.dataset.playlistId;
+            const shareUrl = `${window.location.origin}/playlist/shared/${playlistId}`;
+            
+            navigator.clipboard.writeText(shareUrl).then(() => {
+                showToast('Share link copied to clipboard!', 'success');
+            }).catch(err => {
+                console.error('Failed to copy link:', err);
+                showToast('Failed to copy link', 'error');
+            });
+        });
+    });
+
+    {% if current_user.is_authenticated %}
+    // Clone playlist functionality
+    const cloneButtons = document.querySelectorAll('.clone-playlist-btn');
+    const cloneModal = new bootstrap.Modal(document.getElementById('cloneModal'));
+    const clonePlaylistNameInput = document.getElementById('clonePlaylistName');
+    const clonePlaylistDescriptionInput = document.getElementById('clonePlaylistDescription');
+    const confirmCloneBtn = document.getElementById('confirmCloneBtn');
+    let currentClonePlaylistId = null;
+
+    cloneButtons.forEach(button => {
+        button.addEventListener('click', function() {
+            currentClonePlaylistId = this.dataset.playlistId;
+            const originalName = this.dataset.playlistName;
+            
+            clonePlaylistNameInput.value = `Copy of ${originalName}`;
+            clonePlaylistDescriptionInput.value = '';
+            cloneModal.show();
+        });
+    });
+
+    confirmCloneBtn.addEventListener('click', function() {
+        const newName = clonePlaylistNameInput.value.trim();
+        const newDescription = clonePlaylistDescriptionInput.value.trim();
+        
+        if (!newName) {
+            showToast('Please enter a name for the cloned playlist', 'warning');
+            return;
+        }
+
+        if (!currentClonePlaylistId) return;
+
+        // Create new playlist and copy songs
+        fetch('/api/playlists/clone', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                source_playlist_id: currentClonePlaylistId,
+                name: newName,
+                description: newDescription
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'success') {
+                showToast('Playlist cloned successfully!', 'success');
+                cloneModal.hide();
+            } else {
+                showToast(data.message || 'Failed to clone playlist', 'error');
+            }
+        })
+        .catch(error => {
+            console.error('Error cloning playlist:', error);
+            showToast('Network error occurred', 'error');
+        });
+    });
+    {% endif %}
+});
+
+// Toast notification function
+function showToast(message, type = 'info') {
+    const toastContainer = document.querySelector('.toast-container') || createToastContainer();
+    const toastId = 'toast-' + Date.now();
+    
+    const toastHtml = `
+        <div class="toast align-items-center text-white bg-${type === 'error' ? 'danger' : type === 'success' ? 'success' : type === 'warning' ? 'warning' : 'info'} border-0" 
+             role="alert" aria-live="assertive" aria-atomic="true" id="${toastId}">
+            <div class="d-flex">
+                <div class="toast-body">
+                    <i class="bi bi-${type === 'error' ? 'exclamation-triangle' : type === 'success' ? 'check-circle' : type === 'warning' ? 'exclamation-triangle' : 'info-circle'} me-2"></i>
+                    ${message}
+                </div>
+                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+            </div>
+        </div>
+    `;
+    
+    toastContainer.insertAdjacentHTML('beforeend', toastHtml);
+    const toast = new bootstrap.Toast(document.getElementById(toastId));
+    toast.show();
+    
+    document.getElementById(toastId).addEventListener('hidden.bs.toast', function() {
+        this.remove();
+    });
+}
+
+function createToastContainer() {
+    const container = document.createElement('div');
+    container.className = 'toast-container position-fixed top-0 end-0 p-3';
+    container.style.zIndex = '1055';
+    document.body.appendChild(container);
+    return container;
+}
+</script>
+{% endblock %}

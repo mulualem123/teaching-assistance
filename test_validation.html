@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shared Playlist Fix Validation</title>
+    <style>
+        .test-section { margin: 20px; padding: 20px; border: 1px solid #ccc; }
+        .test-result { padding: 10px; margin: 10px 0; }
+        .success { background-color: #d4edda; color: #155724; }
+        .error { background-color: #f8d7da; color: #721c24; }
+    </style>
+</head>
+<body>
+    <h1>Shared Playlist Navigation Fix Validation</h1>
+    
+    <div class="test-section">
+        <h2>Test 1: Shared Playlist Link</h2>
+        <p>This should navigate naturally without JavaScript interference:</p>
+        <a href="/playlist/shared/123" 
+           class="btn btn-primary shared-playlist-link"
+           data-no-intercept="true"
+           data-playlist-type="shared"
+           onclick="console.log('Link clicked - should navigate naturally'); return true;">
+            Open Shared Playlist
+        </a>
+        <div id="test1-result" class="test-result"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>Test 2: User's Own Playlist</h2>
+        <p>This should be intercepted by JavaScript and call loadPlaylist():</p>
+        <button data-load-playlist data-playlist-id="456"
+                onclick="console.log('Should be intercepted by JS event handler')">
+            Open My Playlist
+        </button>
+        <div id="test2-result" class="test-result"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>Test 3: Shared Playlist Card</h2>
+        <p>Clicking the card (not buttons) should navigate to shared view:</p>
+        <div class="shared-playlist-card" data-shared-playlist-id="789">
+            <h3>Test Shared Playlist</h3>
+            <p>Click anywhere on this card except the button below</p>
+            <a href="/playlist/shared/789" class="btn btn-sm shared-playlist-link" 
+               data-no-intercept="true">Open</a>
+        </div>
+        <div id="test3-result" class="test-result"></div>
+    </div>
+
+    <script>
+        // Simulate the fixed event handling logic
+        document.addEventListener('click', (e) => {
+            console.log('Click event:', e.target);
+            
+            // PRIORITY 1: Always allow shared playlist links to navigate naturally
+            if (e.target.matches('a.shared-playlist-link') || 
+                e.target.closest('a.shared-playlist-link') ||
+                e.target.matches('a[href*="/playlist/shared/"]') || 
+                e.target.closest('a[href*="/playlist/shared/"]')) {
+                console.log('✓ Allowing natural navigation for shared playlist link');
+                document.getElementById('test1-result').innerHTML = '<div class="success">✓ Shared playlist link will navigate naturally</div>';
+                return true;
+            }
+
+            // PRIORITY 2: Skip any elements with data-no-intercept or shared playlist types
+            if (e.target.hasAttribute('data-no-intercept') ||
+                e.target.closest('[data-no-intercept]') ||
+                (e.target.hasAttribute('data-playlist-type') && e.target.getAttribute('data-playlist-type') === 'shared') ||
+                e.target.closest('[data-playlist-type="shared"]')) {
+                console.log('✓ Skipping JavaScript handling due to data-no-intercept or shared type');
+                return true;
+            }
+            
+            // PRIORITY 3: Handle shared playlist cards (but not their buttons/links)
+            const sharedCard = e.target.closest('.shared-playlist-card') || e.target.closest('.shared-playlist-card-mobile');
+            if (sharedCard && !e.target.closest('button') && !e.target.closest('a')) {
+                const playlistId = sharedCard.dataset.sharedPlaylistId;
+                if (playlistId) {
+                    console.log('✓ Navigating to shared playlist from card click:', playlistId);
+                    document.getElementById('test3-result').innerHTML = '<div class="success">✓ Card click would navigate to /playlist/shared/' + playlistId + '</div>';
+                    e.preventDefault(); // Prevent for this test
+                    return false;
+                }
+            }
+            
+            // PRIORITY 4: Only handle data-load-playlist elements (user's own playlists)
+            if (e.target.matches('[data-load-playlist]')) {
+                e.preventDefault();
+                console.log('✓ Loading user playlist:', e.target.dataset.playlistId);
+                document.getElementById('test2-result').innerHTML = '<div class="success">✓ User playlist would call loadPlaylist(' + e.target.dataset.playlistId + ')</div>';
+                return false;
+            }
+            
+            console.log('No special handling - default behavior');
+        });
+
+        // Simulate loadPlaylist function
+        function loadPlaylist(playlistId) {
+            console.log('loadPlaylist called with ID:', playlistId);
+            return false;
+        }
+    </script>
+</body>
+</html>

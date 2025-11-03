@@ -1,0 +1,458 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-12">
+            <!-- Playlist Header -->
+            <div class="card mb-4">
+                <div class="card-body">
+                    <div class="row align-items-center">
+                        <div class="col-md-8">
+                            <h2 class="card-title mb-2">
+                                <i class="bi bi-collection-play me-2"></i>{{ playlist.name }}
+                            </h2>
+                            <p class="card-text text-muted">{{ playlist.description or 'No description' }}</p>
+                            <div class="d-flex align-items-center">
+                                <span class="badge bg-success me-3">
+                                    <i class="bi bi-people me-1"></i>Shared Collection
+                                </span>
+                                <small class="text-muted me-3">
+                                    <i class="bi bi-person me-1"></i>by {{ playlist.user.username }}
+                                </small>
+                                <small class="text-muted">
+                                    <i class="bi bi-music-note me-1"></i>{{ songs|length }} songs
+                                </small>
+                            </div>
+                        </div>
+                        <div class="col-md-4 text-md-end">
+                            <button class="btn btn-primary me-2" id="playAllBtn">
+                                <i class="bi bi-play-fill me-2"></i>Play All
+                            </button>
+                            <button class="btn btn-outline-secondary" id="sharePlaylistBtn">
+                                <i class="bi bi-share me-2"></i>Share
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Songs List -->
+            {% if songs %}
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="bi bi-list-ol me-2"></i>Songs in this Playlist
+                        </h5>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="list-group list-group-flush">
+                            {% for song in songs %}
+                                <div class="list-group-item list-group-item-action song-item" data-song-id="{{ song[0] }}">
+                                    <div class="row align-items-center">
+                                        <div class="col-auto">
+                                            <button class="btn btn-sm btn-outline-primary play-song-btn" data-song-id="{{ song[0] }}">
+                                                <i class="bi bi-play-fill"></i>
+                                            </button>
+                                        </div>
+                                        <div class="col">
+                                            <h6 class="mb-1">{{ song[1] }}</h6>
+                                            {% if song[2] %}
+                                                <small class="text-muted">{{ song[2] }}</small>
+                                            {% endif %}
+                                        </div>
+                                        <div class="col-auto">
+                                            <div class="dropdown">
+                                                <button class="btn btn-sm btn-outline-secondary dropdown-toggle" 
+                                                        type="button" data-bs-toggle="dropdown">
+                                                    <i class="bi bi-three-dots"></i>
+                                                </button>
+                                                <ul class="dropdown-menu">
+                                                    <li>
+                                                        <button class="dropdown-item view-lyrics-btn" data-song-id="{{ song[0] }}">
+                                                            <i class="bi bi-card-text me-2"></i>View Lyrics
+                                                        </button>
+                                                    </li>
+                                                    {% if current_user.is_authenticated %}
+                                                    <li>
+                                                        <button class="dropdown-item add-to-my-playlist-btn" data-song-id="{{ song[0] }}">
+                                                            <i class="bi bi-plus-circle me-2"></i>Add to My Playlist
+                                                        </button>
+                                                    </li>
+                                                    {% endif %}
+                                                </ul>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+            {% else %}
+                <div class="text-center py-5">
+                    <i class="bi bi-music-note display-1 text-muted"></i>
+                    <h4 class="mt-3 text-muted">No songs yet</h4>
+                    <p class="text-muted">This playlist is empty.</p>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Enhanced Audio Player Modal with Integrated Lyrics -->
+<div class="modal fade" id="audioPlayerModal" tabindex="-1" aria-labelledby="audioPlayerModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="audioPlayerModalLabel">Audio Player with Lyrics</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row">
+                    <div class="col-lg-8">
+                        <div id="audioPlayerContainer">
+                            <audio id="sharedAudioPlayer" controls class="w-100">
+                                Your browser does not support the audio element.
+                            </audio>
+                        </div>
+                        <div id="currentSongInfo" class="mt-3">
+                            <h6 id="currentSongTitle"></h6>
+                            <p id="currentSongDetails" class="text-muted"></p>
+                        </div>
+                    </div>
+                    <div class="col-lg-4">
+                        <div class="card">
+                            <div class="card-header d-flex justify-content-between align-items-center">
+                                <h6 class="mb-0">Lyrics</h6>
+                                <button class="btn btn-sm btn-outline-secondary" id="toggleLyricsBtn">
+                                    <i class="bi bi-eye"></i>
+                                </button>
+                            </div>
+                            <div class="card-body" id="lyricsPanel" style="max-height: 300px; overflow-y: auto;">
+                                <div class="text-center">
+                                    <div class="spinner-border" role="status">
+                                        <span class="visually-hidden">Loading...</span>
+                                    </div>
+                                    <p class="mt-2 text-muted">Loading lyrics...</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-primary" id="nextSongBtn">Next Song</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Standalone Lyrics Modal -->
+<div class="modal fade" id="lyricsModal" tabindex="-1" aria-labelledby="lyricsModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="lyricsModalLabel">Song Lyrics</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="lyricsContent">
+                <div class="text-center">
+                    <div class="spinner-border" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    let currentPlaylist = [];
+    let currentIndex = 0;
+    let audioPlayer = null;
+    let currentSongId = null;
+    let lyricsData = null;
+
+    // Initialize audio player
+    function initAudioPlayer() {
+        audioPlayer = document.getElementById('sharedAudioPlayer');
+        if (!audioPlayer) return;
+
+        const songItems = document.querySelectorAll('.song-item');
+        currentPlaylist = Array.from(songItems).map(item => ({
+            id: item.dataset.songId,
+            title: item.querySelector('h6').textContent,
+            audioUrl: `/audio/${item.dataset.songId}`
+        }));
+    }
+
+    // Play single song
+    document.querySelectorAll('.play-song-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const songId = this.dataset.songId;
+            const songIndex = currentPlaylist.findIndex(song => song.id === songId);
+            if (songIndex !== -1) {
+                playSong(songIndex);
+            }
+        });
+    });
+
+    // Play all songs
+    document.getElementById('playAllBtn').addEventListener('click', function() {
+        if (currentPlaylist.length > 0) {
+            playSong(0);
+        } else {
+            showToast('No songs in playlist', 'warning');
+        }
+    });
+
+    // Next song button
+    document.getElementById('nextSongBtn').addEventListener('click', function() {
+        if (currentIndex < currentPlaylist.length - 1) {
+            playSong(currentIndex + 1);
+        } else {
+            playSong(0);
+        }
+    });
+
+    // Toggle lyrics visibility
+    document.getElementById('toggleLyricsBtn').addEventListener('click', function() {
+        const lyricsPanel = document.getElementById('lyricsPanel');
+        lyricsPanel.style.display = lyricsPanel.style.display === 'none' ? 'block' : 'none';
+    });
+
+    // View lyrics
+    document.querySelectorAll('.view-lyrics-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const songId = this.dataset.songId;
+            loadLyrics(songId);
+        });
+    });
+
+    // Add to playlist
+    document.querySelectorAll('.add-to-my-playlist-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const songId = this.dataset.songId;
+            loadMyPlaylists(songId);
+        });
+    });
+
+    // Share playlist
+    document.getElementById('sharePlaylistBtn').addEventListener('click', function() {
+        const shareUrl = window.location.href;
+        navigator.clipboard.writeText(shareUrl).then(() => {
+            showToast('Playlist link copied to clipboard!', 'success');
+        });
+    });
+
+    // Functions
+    function playSong(index) {
+        if (index < 0 || index >= currentPlaylist.length) return;
+
+        currentIndex = index;
+        const song = currentPlaylist[index];
+        currentSongId = song.id;
+        
+        // Update audio player
+        audioPlayer.src = song.audioUrl;
+        audioPlayer.load();
+        
+        // Update song info
+        document.getElementById('currentSongTitle').textContent = song.title;
+        document.getElementById('currentSongDetails').textContent = `Song ${index + 1} of ${currentPlaylist.length}`;
+        
+        // Show modal and play
+        const audioModal = new bootstrap.Modal(document.getElementById('audioPlayerModal'));
+        audioModal.show();
+        
+        // Automatically load lyrics when song starts
+        loadLyricsForPlayer(song.id);
+        
+        audioPlayer.play().catch(error => {
+            console.error('Error playing audio:', error);
+            showToast('Error playing audio', 'error');
+        });
+    }
+
+    function loadLyricsForPlayer(songId) {
+        const lyricsPanel = document.getElementById('lyricsPanel');
+        lyricsPanel.innerHTML = `
+            <div class="text-center">
+                <div class="spinner-border" role="status">
+                    <span class="visually-hidden">Loading lyrics...</span>
+                </div>
+                <p class="mt-2 text-muted">Loading lyrics...</p>
+            </div>
+        `;
+        
+        fetch(`/api/song/${songId}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    const song = data.song;
+                    let html = '';
+                    
+                    if (song.geez_text || song.english_text) {
+                        html = `
+                            <div class="mb-3">
+                                <h6>Ge'ez</h6>
+                                <div class="lyrics-text">${song.geez_text || 'No Ge\'ez text available'}</div>
+                            </div>
+                            <div>
+                                <h6>English</h6>
+                                <div class="lyrics-text">${song.english_text || 'No English translation available'}</div>
+                            </div>
+                        `;
+                    } else {
+                        html = '<p class="text-muted text-center">No lyrics available for this song.</p>';
+                    }
+                    
+                    lyricsPanel.innerHTML = html;
+                } else {
+                    lyricsPanel.innerHTML = '<p class="text-muted text-center">Unable to load lyrics.</p>';
+                }
+            })
+            .catch(error => {
+                console.error('Error loading lyrics:', error);
+                lyricsPanel.innerHTML = '<p class="text-danger text-center">Error loading lyrics.</p>';
+            });
+    }
+
+    function loadLyrics(songId) {
+        document.getElementById('lyricsContent').innerHTML = `
+            <div class="text-center">
+                <div class="spinner-border" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+            </div>
+        `;
+        
+        const lyricsModal = new bootstrap.Modal(document.getElementById('lyricsModal'));
+        lyricsModal.show();
+        
+        fetch(`/api/song/${songId}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    const song = data.song;
+                    document.getElementById('lyricsModalLabel').textContent = song.title;
+                    
+                    let html = '';
+                    if (song.geez_text || song.english_text) {
+                        html = `
+                            <div class="mb-3">
+                                <h6>Ge'ez</h6>
+                                <div class="lyrics-text">${song.geez_text || 'No Ge\'ez text available'}</div>
+                            </div>
+                            <div>
+                                <h6>English</h6>
+                                <div class="lyrics-text">${song.english_text || 'No English translation available'}</div>
+                            </div>
+                        `;
+                    } else {
+                        html = '<p class="text-muted text-center">No lyrics available for this song.</p>';
+                    }
+                    
+                    document.getElementById('lyricsContent').innerHTML = html;
+                } else {
+                    document.getElementById('lyricsContent').innerHTML = '<p class="text-muted text-center">Unable to load lyrics.</p>';
+                }
+            })
+            .catch(error => {
+                console.error('Error loading lyrics:', error);
+                document.getElementById('lyricsContent').innerHTML = '<p class="text-danger text-center">Error loading lyrics.</p>';
+            });
+    }
+
+    function loadMyPlaylists(songId) {
+        if (!{{ 'true' if current_user.is_authenticated else 'false' }}) {
+            showToast('Please log in to add songs to playlists', 'warning');
+            return;
+        }
+
+        document.getElementById('playlistsList').innerHTML = `
+            <div class="text-center">
+                <div class="spinner-border" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+            </div>
+        `;
+        
+        const addModal = new bootstrap.Modal(document.getElementById('addToPlaylistModal'));
+        addModal.show();
+        
+        fetch('/api/playlists')
+            .then(response => response.json())
+            .then(playlists => {
+                let html = '';
+                if (playlists.length > 0) {
+                    playlists.forEach(playlist => {
+                        html += `
+                            <div class="list-group-item list-group-item-action" style="cursor: pointer;" 
+                                 onclick="addToPlaylist(${playlist.id}, ${songId})">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <h6 class="mb-1">${playlist.name}</h6>
+                                        <small class="text-muted">${playlist.song_count} songs</small>
+                                    </div>
+                                    <i class="bi bi-plus-circle"></i>
+                                </div>
+                            </div>
+                        `;
+                    });
+                } else {
+                    html = '<p class="text-muted text-center">You don\'t have any playlists yet.</p>';
+                }
+                document.getElementById('playlistsList').innerHTML = `<div class="list-group">${html}</div>`;
+            })
+            .catch(error => {
+                console.error('Error loading playlists:', error);
+                document.getElementById('playlistsList').innerHTML = '<p class="text-danger text-center">Error loading playlists.</p>';
+            });
+    }
+
+    function addToPlaylist(playlistId, songId) {
+        fetch(`/playlist/${playlistId}/add/${songId}`, {
+            method: 'POST'
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'success') {
+                showToast('Song added to playlist!', 'success');
+            } else {
+                showToast(data.message || 'Failed to add song', 'error');
+            }
+            const modal = bootstrap.Modal.getInstance(document.getElementById('addToPlaylistModal'));
+            modal.hide();
+        })
+        .catch(error => {
+            showToast(error.message, 'error');
+            console.error('Playlist Error:', error);
+        });
+    }
+
+    function showToast(message, type = 'info') {
+        const toast = document.createElement('div');
+        toast.className = `alert alert-${type === 'success' ? 'success' : type === 'error' ? 'danger' : 'info'} position-fixed`;
+        toast.style.cssText = 'top: 20px; right: 20px; z-index: 1060; min-width: 300px;';
+        toast.innerHTML = `
+            <div class="d-flex justify-content-between align-items-center">
+                <span>${message}</span>
+                <button type="button" class="btn-close" onclick="this.parentElement.parentElement.remove()"></button>
+            </div>
+        `;
+        document.body.appendChild(toast);
+        setTimeout(() => toast.remove(), 4000);
+    }
+
+    // Initialize on page load
+    initAudioPlayer();
+});
+</script>
+{% endblock %}
