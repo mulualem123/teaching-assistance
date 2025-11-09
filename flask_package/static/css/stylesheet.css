@@ -324,6 +324,8 @@
 
 /* Filtered Out Card Styles */
 .mezmur-card-container.filtered-out {
+    /* Remove from layout flow so remaining cards reflow into the freed space */
+    display: none !important;
     opacity: 0;
     transform: scale(0.95);
     height: 0;
@@ -334,6 +336,8 @@
 
 /* General Filtered Out Styles (for broader application if needed) */
 .filtered-out {
+    /* Generic filtered-out helper - hide element completely so grid reflows */
+    display: none !important;
     opacity: 0;
     transform: scale(0.95);
     height: 0;
@@ -388,7 +392,7 @@
     min-height: 200px;
 }
 #mezmurGrid {
-    display: block !important; /* Override Bootstrap's flex display */
+    /*display: block !important;*/ /* Override Bootstrap's flex display */
 }
 
 /* Z-index for Dropdown Menu (to appear above other elements) */
