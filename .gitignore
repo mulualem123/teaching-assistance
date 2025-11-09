@@ -1,43 +1,88 @@
-# Ignore database files
-teaching-assistance/flask_package/instance/site.db
+# ----- Project / OS -----
+# Windows thumbnail cache
+Thumbs.db
+# macOS
+.DS_Store
+
+# Temporary and backup files
+*.log
+*.bak
+*.backup
+*.swp
+
+# ----- Python -----
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# Virtual environments
+venv/
+.venv/
+env/
+env.bak/
+/.venv
+
+# Packaging
+pip-wheel-metadata/
+build/
+dist/
+
+# Test / coverage
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Mypy
+.mypy_cache/
+
+# ----- Databases / secrets -----
+# Local DB files
 *.db
 *.sqlite
 *.sqlite3
 
+# Application instance directory (may contain sqlite DBs)
+/flask_package/instance/
+/instance/
 
-# Ignore compiled Python files
-__pycache__/
-*.pyc
-
-# Ignore environment variables file
+# Environment files and local overrides
 .env
+.env.*
+.env.local
+.env.production
+.env.test
 
-# Ignore virtual environment directory
-venv/
-.venv/
-.venv
-./flask_package/archive/
-debug.md
+# Keys, certificates and secrets
+*.pem
+*.key
+*.crt
+*.cer
+*.p12
+*.pfx
+*.der
+secrets.yaml
+credentials.json
+*.jks
 
-# Lab-specific files (please update with actual patterns)
-# For example:
-# lab_notebooks/
-# *.lab_data
-
-# Ignore Node.js dependencies
+# ----- Node -----
 node_modules/
 
-# Ignore instance folder
-instance/
+# ----- Editor / IDE -----
+.vscode/
+.idea/
+*.code-workspace
 
-# Ignore log files
-*.log
+# ----- Terraform -----
+.terraform/
+*.tfstate
+*.tfstate.*
 
-# Ignore large media and document files
-*.pptx
-*.xlsx
-*.mp3
-*.ogg
-*.webm
-*.mpeg
-*.backup
+# ----- Misc -----
+coverage/
+__MACOSX/
+.history/
+
+# Leave package-lock.json and other lockfiles tracked (recommended)
+# If you want to ignore lockfiles, add them explicitly here.
