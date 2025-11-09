@@ -97,8 +97,14 @@ from models import roles_users
 
 app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///roles.db'
-app.config['SECRET_KEY'] = 'super-secret-key'
-app.config['SECURITY_PASSWORD_SALT'] = 'super-secret-salt'
+# SECURITY NOTE: Do NOT commit secrets into the repository. Use environment variables
+# to provide SECRET_KEY and SECURITY_PASSWORD_SALT in your deployment environment.
+# Example (PowerShell):
+#   $env:SECRET_KEY = 'your-very-secret-key'
+#   $env:SECURITY_PASSWORD_SALT = 'your-password-salt'
+# In Flask, you can then read from environment variables, for example:
+#   app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY')
+#   app.config['SECURITY_PASSWORD_SALT'] = os.environ.get('SECURITY_PASSWORD_SALT')
 
 db.init_app(app)
 migrate = Migrate(app, db)
@@ -184,9 +190,11 @@ DATABASE
                 # Get-ChildItem Env:ADMIN_EMAIL
                 # Get-ChildItem Env:ADMIN_PASSWORD
 
-# Set environment variables
-$env:ADMIN_EMAIL = 'your-admin-email@example.com'
-$env:ADMIN_PASSWORD = 'your-new-password'
+# Set environment variables (do not commit real credentials)
+# PowerShell example (replace with your values locally):
+#   $env:ADMIN_EMAIL = 'admin@example.com'
+#   $env:ADMIN_PASSWORD = 'your_secure_password'
+# Consider using a `.env` file locally (kept out of git) or a secret manager in production.
 
 # Reset password
 flask --app flask_package reset-admin-password

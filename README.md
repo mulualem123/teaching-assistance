@@ -44,9 +44,9 @@ This sets the email and name for the current repository.  However, if you're NOT
   docker logs adoring_leavitt
   docker stop adoring_leavitt
 
-# Set environment variables
-$env:ADMIN_EMAIL = 'your-admin-email@example.com'
-$env:ADMIN_PASSWORD = 'your-new-password'
-
-# Reset password
-flask --app flask_package reset-admin-password
+# Set environment variables (do NOT store real credentials in the repo)
+# PowerShell example (set these locally or via your deployment pipeline):
+#   $env:ADMIN_EMAIL = 'admin@example.com'
+#   $env:ADMIN_PASSWORD = 'your_secure_password'
+# To reset the admin password, run the CLI command inside the app environment:
+#   flask --app flask_package reset-admin-password
