@@ -36,24 +36,27 @@ sundayClassPP = r'C:\\Users\\selon\\Documents\\Bete Christian\\Lecture'
 #pp_parent_folder = r'flask_package/doc/pp/'
 audio_folder = r'flask_package/static/audio/'
 
-#sqlite3
-#app.config['DATABASE'] = r'/python-docker/flask_package/site.db'
-app.config['DATABASE'] = r'flask_package/instance/site.db'
-#app.config['DATABASE'] = 'sqlite:///users.db'
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///users.db' #Account creation
-#app.config['SQLALCHEMY_DATABASE_URI'] = r'flask_package/instance/users.db' #Account creation
+# --- Database Configuration ---
+# Define an absolute path for the instance folder to ensure databases are always found.
+instance_folder = os.path.join(app.root_path, 'instance')
+os.makedirs(instance_folder, exist_ok=True)
 
+# Configure the SQLite database for mezmur data (site.db)
+app.config['DATABASE'] = os.path.join(instance_folder, 'site.db')
+
+# Configure the SQLAlchemy database for user accounts (users.db)
+app.config['SQLALCHEMY_DATABASE_URI'] = f"sqlite:///{os.path.join(app.instance_path, 'users.db')}"
 app.config['SECURITY_PASSWORD_SALT'] = 'super-secret-salt'
 # CSRF Configuration
 app.config['WTF_CSRF_ENABLED'] = False  # Disable CSRF for now to fix login issues
 app.config['SECURITY_CSRF_IGNORE_UNAUTH_ENDPOINTS'] = True
 app.config['SECURITY_CSRF_PROTECT_MECHANISMS'] = []
+
 db.init_app(app) #initiating sqlite3
 print ("sql initiated")
 
 account_db.init_app(app)    #Account creation
 migrate = Migrate(app, account_db)
-#login_manager= LoginManager(app)  #Account creation
 login_manager= LoginManager()  #Account creation
 login_manager.init_app(app)  #Account creation
 login_manager.login_view = 'login'  #Account creation
@@ -67,7 +70,9 @@ user_datastore = SQLAlchemyUserDatastore(account_db, User, Role)
 security = Security(app, user_datastore)
         
 with app.app_context():
-    account_db.create_all()
+    # Initialize both databases within the app context
+    db.init_db()  # Creates site.db for mezmur data if it doesn't exist
+    account_db.create_all() # Creates users.db for accounts if it doesn't exist
     print("Tables created successfully!")
 
 # Import models after initializing account_db to avoid circular imports
@@ -126,7 +131,7 @@ def create_admin_command():
             user_datastore.create_user(
                 email=admin_email,
                 username=admin_email.split('@')[0], # Added: Provide a username as it's a NOT NULL column
-                password=generate_password_hash(admin_password),
+                password=admin_password, # Pass plaintext password to Flask-Security
                 roles=[admin_role]
             )
             account_db.session.commit()
@@ -135,31 +140,31 @@ def create_admin_command():
             account_db.session.rollback()
             click.echo(f"Error creating admin user: {e}")
 
-@app.cli.command("reset-admin-password")
-def reset_admin_password_command():
-    """Reset the admin user password from environment variables."""
-    admin_email = os.getenv('ADMIN_EMAIL')
-    admin_password = os.getenv('ADMIN_PASSWORD')
+@app.cli.command("reset-password")
+@click.argument("email")
+def reset_password_command(email):
+    """Resets the password for a user with the given email."""
+    new_password = os.getenv('NEW_PASSWORD')
 
-    if not admin_email or not admin_password:
-        click.echo("Error: ADMIN_EMAIL and ADMIN_PASSWORD environment variables must be set.")
+    if not new_password:
+        click.echo("Error: NEW_PASSWORD environment variable must be set.")
         return
 
     with app.app_context():
-        admin_user = User.query.filter_by(email=admin_email).first()
-        if not admin_user:
-            click.echo(f"Admin user with email '{admin_email}' not found.")
+        user = User.query.filter_by(email=email).first()
+        if not user:
+            click.echo(f"User with email '{email}' not found.")
             return
 
         try:
-            # Use Flask-Security's hash_password method instead of Werkzeug's
+            # Use Flask-Security's password hashing
             from flask_security.utils import hash_password
-            admin_user.password = hash_password(admin_password)
+            user.password = hash_password(new_password)
             account_db.session.commit()
-            click.echo(f"Admin password for '{admin_email}' reset successfully using Flask-Security method.")
+            click.echo(f"Password for '{email}' has been reset successfully.")
         except Exception as e:
             account_db.session.rollback()
-            click.echo(f"Error resetting admin password: {e}")
+            click.echo(f"Error resetting password: {e}")
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
@@ -182,11 +187,11 @@ def register():
             new_user = user_datastore.create_user(
                 username=form.username.data,
                 email=form.email.data,
-                password=form.password.data  # Ensuring we hash passwords properly
+                password=form.password.data  # Pass plaintext, Flask-Security handles hashing
             )
             account_db.session.commit()
             
-            user_datastore.add_role_to_user(new_user, 'normal_user')
+            user_datastore.add_role_to_user(new_user, 'student') # Assign a default role
             account_db.session.commit()
         
         flash('Your account has been created! You are now able to log in', 'success')
@@ -434,10 +439,13 @@ def audio(id):
             selected_audio = audio_list[0]
             print("001 audio/Selected_audio_exist " + str(selected_audio))
             
+            # Construct the absolute path to the audio directory
+            audio_dir = os.path.join(app.root_path, 'static', 'audio')
+            
             # Check if file actually exists
-            audio_path = os.path.join('flask_package/static/audio', str(selected_audio))
+            audio_path = os.path.join(audio_dir, str(selected_audio))
             if os.path.exists(audio_path):
-                return send_from_directory('static/audio', str(selected_audio))
+                return send_from_directory(audio_dir, str(selected_audio))
             else:
                 print(f"Audio file not found at path: {audio_path}")
                 # Return a 404 error with proper JSON response
@@ -450,7 +458,7 @@ def audio(id):
             # Return a 404 error for missing audio
             return jsonify({
                 'error': 'No audio available',
-                'message': f'No audio file associated with ID {id}'
+                    'message': f'No audio file associated with ID {id}' 
             }), 404
             
     except Exception as e:
@@ -637,6 +645,7 @@ def update (id):
     print("number13 " + str(mezdata[13]))
     print("number14 " + str(mezdata[14]))
     
+
     #variable to be only passed or (updated and passed)
     latin_text = mezdata[4] 
     engTrans = mezdata[5]
@@ -645,7 +654,7 @@ def update (id):
     for tag in selected_mez_tags:
         print ("This is selected mezmur's Tag " + str(tag))
        
-    if (mezdata[2]==None or mezdata[2]==" "):
+    if mezdata[2] is None or mezdata[2] == " ":
         #db.set_titleen(changealphabet.geez_to_latin(my_map, mezdata[1]), id)
         db.set_titleen(changealphabet.geez_to_latin(mezdata[1]), id)
         #print ("Titleen ")
@@ -666,11 +675,11 @@ def update (id):
         print ("English translate to be passed to update page is " + str(engTrans))
         
     return render_template("update.html", 
-                           mezdata=mezdata,
-                           engTrans=engTrans, 
-                           lg_text = googletransfun.check_language_type(mezdata[3]),
+                           mezmur=mezdata,
+                           engTrat = googletransfun.check_language_type(mezdata[3]),
                            translated_text = googletransfun.translate_tig_eng(mezdata[3]),
                            latin_text = latin_text,
+                           engTrans = engTrans,
                            tags=db.get_taglist(),
                            selected_mez_tags=selected_mez_tags)
 

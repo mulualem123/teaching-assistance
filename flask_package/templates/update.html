@@ -58,19 +58,19 @@
         <form action="/pushupdate" method="POST" enctype="multipart/form-data">
           <div class="mb-3">
             <label for="id" class="form-label">ID</label>
-            <input class="form-control" name="id" type="text" value="{{ mezmur.id }}" readonly>
+            <input class="form-control" name="id" type="text" value="{{ mezmur[0] }}" readonly>
           </div>
           <div class="mb-3">
             <label for="title" class="form-label">Title</label>
-            <input class="form-control" name="title" type="text" value="{{ mezmur.title }}">
+            <input class="form-control" name="title" type="text" value="{{ mezmur[1] }}">
           </div>
           <div class="mb-3">
             <label for="titleen" class="form-label">Title (English)</label>
-            <input class="form-control" name="titleen" type="text" value="{{ mezmur.title_en }}">
+            <input class="form-control" name="titleen" type="text" value="{{ mezmur[2] }}">
           </div>
           <div class="mb-3">
             <label for="geez_text" class="form-label">Azmach</label>
-            <textarea id="geez_text" name="geez_text" class="form-control" rows="5">{{ mezmur.geez_text }}</textarea>
+            <textarea id="geez_text" name="geez_text" class="form-control" rows="5">{{ mezmur[3] }}</textarea>
           </div>
           <div class="mb-3">
             <label for="alpha_text" class="form-label">Azmachen</label>
@@ -82,15 +82,15 @@
           </div>
           <div class="mb-3">
             <label for="geez_text" class="form-label">Timed-Geez</label>
-            <textarea id="geez_text" name="timed-geez" class="form-control" rows="5">{{ mezmur.timed_geez }}</textarea>
+            <textarea id="geez_text" name="timed-geez" class="form-control" rows="5">{{ mezmur[6] }}</textarea>
           </div>
           <div class="mb-3">
             <label for="alpha_text" class="form-label">Timed-latin</label>
-            <textarea id="alpha_text" name="timed-latin" class="form-control" rows="5">{{ mezmur.timed_latin }}</textarea>
+            <textarea id="alpha_text" name="timed-latin" class="form-control" rows="5">{{ mezmur[7] }}</textarea>
           </div>
           <div class="mb-3">
             <label for="engTrans" class="form-label">Timed-English</label>
-            <textarea id="engTrans" name="timed-english" class="form-control" rows="5">{{ mezmur.timed_english }}</textarea>
+            <textarea id="engTrans" name="timed-english" class="form-control" rows="5">{{ mezmur[8] }}</textarea>
           </div>
           <div class="mb-3">
             <label for="file" class="form-label">Mezmur Audio</label>
@@ -124,7 +124,7 @@
           <div class="mb-3 d-flex align-items-center">
             <input type="submit" value="Update" name="t_update" class="btn btn-success me-2">
             <!-- Delete Button -->
-            <a href="{{ url_for('delete', id=mezmur.id) }}" 
+            <a href="{{ url_for('delete', id=mezmur[0]) }}" 
                class="btn btn-danger"
                onclick="return confirm('Are you sure you want to delete this mezmur?');">
               Delete

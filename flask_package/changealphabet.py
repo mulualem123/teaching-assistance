@@ -27,6 +27,8 @@ def geez_to_latin(text):
     eng_txt=""
     if(text==None or text == ""):
         return text
+    if not isinstance(text, str):
+        return text
     else:
         for char in text:
             if char in my_map or char == '':

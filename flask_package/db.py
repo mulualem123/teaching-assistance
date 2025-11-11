@@ -355,7 +355,7 @@ def get_selected_data(id):
     cursor = db_ob.cursor()
     sql = '''SELECT 
         m_id, title, titleen, azmach, azmachen, engTrans,
-        timed_geez, timed_latin, timed_english,
+        timed_geez, timed_latin, timed_english, 
         dir, audio_file, created, cat1, cat2, cat3 
         FROM mezmur WHERE m_id = ?'''
     cursor.execute(sql, (id,))

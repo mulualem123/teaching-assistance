@@ -1599,7 +1599,7 @@ async function playNextSong() {
         } else {
             // --- No Audio Available ---
             console.log(`No audio URL for: ${song.title}`);
-            showToast(`"${song.title}" has no audio. Displaying lyrics only.`, 'info');
+            showToast(`"${song.title}" has no audio. Skipping to next.`, 'info');
             
             // Ensure player is stopped if previous track had audio
             if (currentPlayer.audioElement && !currentPlayer.audioElement.paused) {
@@ -1615,10 +1615,15 @@ async function playNextSong() {
                 const noAudioMsg = document.createElement('div');
                 noAudioMsg.className = 'audio-fallback';
                 noAudioMsg.innerHTML = `<i class="bi bi-music-note-beamed me-2"></i>Lyrics only - no audio available for "${song.title}"`;
-                currentPlayer.audioElement.parentNode.insertBefore(noAudioMsg, currentPlayer.audioElement.nextSibling);
+                // Avoid adding multiple messages
+                const existingMsg = currentPlayer.audioElement.parentNode.querySelector('.audio-fallback');
+                if (!existingMsg) {
+                    currentPlayer.audioElement.parentNode.insertBefore(noAudioMsg, currentPlayer.audioElement.nextSibling);
+                }
             }
-            // Do not set up 'onended' or 'timeupdate' if there's no audio.
-            // User must click "Play Next" or "Play All" again.
+            
+            // Automatically skip to the next song after a short delay
+            setTimeout(skipToNextSong, 1000); // 1 second delay
         }
         // --- End Audio Handling ---
  

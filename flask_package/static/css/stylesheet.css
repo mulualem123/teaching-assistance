@@ -18,6 +18,10 @@
     box-shadow: 0 10px 20px rgba(0,0,0,0.1); /* Subtle shadow on hover */
 }
 
+.mezmur-card .card-title {
+    color: #2c3e50; /* Dark Gray */
+}
+
 /* Playlist Card Styles */
 .playlist-card {
     transition: transform 0.3s ease, box-shadow 0.3s ease;
