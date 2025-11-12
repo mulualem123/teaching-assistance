@@ -3,7 +3,6 @@ import base64
 from datetime import datetime
 #import requests
 import requests # Uncommented: Required for Telegram send_message function
-import pandas as pd
 import fitz as fz
 import sqlite3
 from flask import Flask, render_template,send_from_directory, send_file, request as rq, flash, redirect, url_for, abort
@@ -16,8 +15,8 @@ from . import db                #Orginal
 from .extractpp import extract  #Orginal
 from . import googletransfun    #Orginal
 from . import changealphabet    #Orginal
-from .forms import RegistrationForm, LoginForm, PlaylistForm    #Orginal
-from .models import db as account_db, User, Role, roles_users, Playlist, PlaylistSong    #Orginal
+from .forms import LoginForm, PlaylistForm    #Orginal
+from .models import db as account_db, User, Role, roles_users, Playlist, PlaylistSong
 from flask_security import Security, SQLAlchemyUserDatastore, UserMixin, RoleMixin, roles_required
 from flask_migrate import Migrate  # Import Migrate here
 from werkzeug.security import generate_password_hash
@@ -25,16 +24,25 @@ from werkzeug.utils import secure_filename
 import click
 from flask import jsonify
 
+# Import the extended registration form
+from .forms import ExtendedRegisterForm
+
 app = Flask(__name__)
 app.config["SECRET_KEY"]= b'\xa4\x99hM\x12s\xc3\x8d' # Moved to top: Best practice for app config
 
-pp_parent_folder = r'C:\\Users\\selon\\Documents\\Bete Christian\\Mezmur'
-sundayClassPP = r'C:\\Users\\selon\\Documents\\Bete Christian\\Lecture'
-#pp_parent_folder = r'C:/Users/MulleTec001/OneDrive/Documents/flask/teaching-assistance/flask_package/pp'
-#pp_parent_folder = r'C:/Users/selon/Documents/Bete Christian/Mezmur'
-#pp_parent_folder = r'/python-docker/flask_package/doc/pp'
-#pp_parent_folder = r'flask_package/doc/pp/'
-audio_folder = r'flask_package/static/audio/'
+# Configure the upload folder for audio files
+audio_folder = os.path.join(app.root_path, 'static', 'audio')
+app.config['UPLOAD_FOLDER'] = audio_folder
+app.config['ALLOWED_EXTENSIONS'] = {'pdf', 'pptx', 'ppt', 'mp3', 'wav', 'ogg', 'webm'}
+# Ensure the upload folder exists
+os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+
+# --- Path Definitions for Content Folders ---
+# Define absolute paths for your content folders to avoid pathing issues.
+pp_parent_folder = os.path.join(app.root_path, 'pp')
+sundayClassPP = os.path.join(app.root_path, 'sundayClassPP')
+os.makedirs(pp_parent_folder, exist_ok=True) # Ensure the directories exist
+os.makedirs(sundayClassPP, exist_ok=True)
 
 # --- Database Configuration ---
 # Define an absolute path for the instance folder to ensure databases are always found.
@@ -47,10 +55,17 @@ app.config['DATABASE'] = os.path.join(instance_folder, 'site.db')
 # Configure the SQLAlchemy database for user accounts (users.db)
 app.config['SQLALCHEMY_DATABASE_URI'] = f"sqlite:///{os.path.join(app.instance_path, 'users.db')}"
 app.config['SECURITY_PASSWORD_SALT'] = 'super-secret-salt'
+# Tell Flask-Security to use our custom login and register templates
+app.config['SECURITY_RECOVERABLE'] = True
+app.config['SECURITY_CHANGEABLE'] = True
+app.config['SECURITY_EMAIL_SENDER'] = 'no-reply@yourdomain.com'
+app.config['SECURITY_REGISTERABLE'] = True # Enable the registration endpoint
+app.config['SECURITY_SEND_REGISTER_EMAIL'] = False # Disable email sending on registration
+
+app.config['SECURITY_LOGIN_USER_TEMPLATE'] = 'login.html'
+app.config['SECURITY_REGISTER_USER_TEMPLATE'] = 'register.html'
+app.config['SECURITY_REGISTER_FORM'] = ExtendedRegisterForm
 # CSRF Configuration
-app.config['WTF_CSRF_ENABLED'] = False  # Disable CSRF for now to fix login issues
-app.config['SECURITY_CSRF_IGNORE_UNAUTH_ENDPOINTS'] = True
-app.config['SECURITY_CSRF_PROTECT_MECHANISMS'] = []
 
 db.init_app(app) #initiating sqlite3
 print ("sql initiated")
@@ -90,12 +105,6 @@ app.config['MAIL_PASSWORD'] = ''
 app.config['MAIL_USE_TLS'] = True
 app.config['MAIL_USE_SSL'] = False
 mail = Mail(app)
-
-# Uppload file Configuration
-app.config['UPLOAD_FOLDER'] = pp_parent_folder
-app.config['ALLOWED_EXTENSIONS'] = {'pdf','pptx','ppt'}
-#Ensure the upload folder exists
-os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
     
 #Initialization 
 geez_text = ""
@@ -168,36 +177,10 @@ def reset_password_command(email):
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
-    form = RegistrationForm()
-    if form.validate_on_submit():
-        with app.app_context():
-            account_db.create_all()
-        
-        # Check if email exists
-        if User.query.filter_by(email=form.email.data).first():
-            flash('Email already exists', 'danger')
-            return redirect(url_for('register'))
-        
-        # Check if username exists
-        if User.query.filter_by(username=form.username.data).first():
-            flash('Username already exists', 'danger')
-            return redirect(url_for('register'))
-        
-        with app.app_context():
-            new_user = user_datastore.create_user(
-                username=form.username.data,
-                email=form.email.data,
-                password=form.password.data  # Pass plaintext, Flask-Security handles hashing
-            )
-            account_db.session.commit()
-            
-            user_datastore.add_role_to_user(new_user, 'student') # Assign a default role
-            account_db.session.commit()
-        
-        flash('Your account has been created! You are now able to log in', 'success')
-        return redirect(url_for('login'))
-    
-    return render_template('register.html', form=form)
+    # This route is now handled by Flask-Security since we have set
+    # SECURITY_REGISTER_USER_TEMPLATE. We can remove the custom logic.
+    # Flask-Security will render the 'register.html' template automatically.
+    return security.render_template('register.html')
 
         #user = User(username=form.username.data, email=form.email.data)
         #user.set_password(form.password.data)
@@ -276,18 +259,14 @@ def edit_user():
     
 @app.route('/login', methods=['GET', 'POST'])
 def login():
-    return security.login_form()
-    #    form = LoginForm()
-    #    if form.validate_on_submit():
-    #        user = User.query.filter_by(email=form.email.data).first()
-    #        if user and user.check_password(form.password.data):
-    #            login_user(user)
-    #            flash('Logged in successfully', 'success')
-    #            return redirect(url_for('index'))
-    #        else:
-    #            flash('Invalid email or password', 'danger')
-    #            return redirect(url_for('login'))
-    #    return render_template('login.html', form=form)
+    # Flask-Security will automatically handle rendering the 'login.html' template
+    # because we configured it in app.config. No need for custom logic here.
+    return security.render_template('login.html')
+
+@app.route('/favicon.ico')
+def favicon():
+    return send_from_directory(os.path.join(app.root_path, 'static'),
+                               'logo.png', mimetype='image/png')
 
 @app.route('/logout', methods=['GET', 'POST'])
 @login_required
@@ -564,26 +543,26 @@ def allowed_file(filename):
     return '.' in filename and \
         filename.rsplit('.', 1)[1].lower() in app.config['ALLOWED_EXTENSIONS']
         
-@app.route("/uplaod", methods=['GET', 'POST'])
-def uplaod_file ():
-    files = rq.files
-    print ("selected files: " + str(files))
+@app.route("/uplaod", methods=['POST'])
+def uplaod_file():
     if rq.method == 'POST':
         # check if the post request has the file part
         if 'file' not in rq.files:
             flash('No file part')
-            return "No File part"
+            return redirect(url_for('files'))
+
         file = rq.files['file']
         if file.filename == '':
             flash('No file selected for uploading')
-            return "No file selected for uploading"
+            return redirect(url_for('files'))
+
         if file and allowed_file(file.filename):
             filename = secure_filename(file.filename)
-            file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
-            #return filename 
-            return render_template("translate.html",
-                                   files = os.listdir(pp_parent_folder), 
-                                   rows= db.get_data())
+            # Save the file to the 'pp' directory
+            file.save(os.path.join(pp_parent_folder, filename))
+            flash(f'File "{filename}" uploaded successfully!')
+            return redirect(url_for('files'))
+    return redirect(url_for('files'))
 
 def upload (files):
     #check if the post request has the file part
@@ -1423,11 +1402,6 @@ def remove_from_playlist(playlist_id, song_id):
         return jsonify({'status': 'error', 'message': str(e)}), 500
     
 ################################PlayList end################
-@app.route('/favicon.ico')
-def favicon():
-    return send_from_directory(os.path.join(app.root_path, 'static'),
-                               'favicon.ico', mimetype='image/vnd.microsoft.icon')
-
 @app.route('/test',  methods=['GET'])
 def test():
     users = [

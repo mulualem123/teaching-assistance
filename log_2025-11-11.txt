@@ -1,0 +1,23 @@
+====================
+Log Date: 2025-11-11
+====================
+
+Summary of Changes and Improvements:
+
+1.  **Authentication UI Overhaul:**
+    *   Redesigned the `login.html` and `register.html` pages with a modern, user-friendly interface using Bootstrap 5.
+    *   Enhancements include a professional card-based layout, application logo, intuitive input fields with icons, and improved navigation links (e.g., "Forgot Password?", "Register here").
+
+2.  **Flask-Security Integration and Configuration:**
+    *   Configured the application in `__init__.py` to use the new custom templates for login and registration.
+    *   Enabled `SECURITY_REGISTERABLE`, `SECURITY_RECOVERABLE`, and `SECURITY_CHANGEABLE` features to provide a complete authentication workflow.
+    *   Created an `ExtendedRegisterForm` in `forms.py` to add a `username` field to the registration process and configured the app to use it.
+
+3.  **Error Resolution and Bug Fixes:**
+    *   **BuildError:** Resolved errors for missing `security.forgot_password` and `security.register` URL endpoints by enabling the necessary features.
+    *   **UndefinedError:** Fixed a Jinja2 error (`'RegisterForm' has no attribute 'username'`) by implementing the `ExtendedRegisterForm`.
+    *   **AssertionError:** Corrected an application startup crash by removing a duplicate `/favicon.ico` route.
+    *   **ImportError:** Fixed a startup failure by updating an import statement in `__init__.py` to reflect a renamed form class.
+    *   **SMTPSenderRefused:** Prevented a server crash during registration by temporarily disabling confirmation emails with `SECURITY_SEND_REGISTER_EMAIL = False`. This allows user registration to succeed while email server credentials are being configured.
+
+Overall, the authentication system is now more robust, user-friendly, and correctly integrated with the Flask-Security extension. The application is stable and the major bugs encountered during development have been resolved.

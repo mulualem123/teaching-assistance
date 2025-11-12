@@ -48,22 +48,32 @@
         </script>
     </header>
     <main>
-            <div class="p-2 card mb-3 border-light" style="max-width:18rem; height: 21rem;">
-                <div class="card-header">
-                  Mezmur Files
-                    <form action="/uplaod" method="POST">
-                        <input type="file" name="file" class="form-control" aria-label="default input example">
-                        <input type="submit" value="upload" name="Upload" class="form-control" aria-label="default input example">
-                    </form>
-
+        <div class="container mt-4">
+            <div class="row justify-content-center">
+                <div class="col-md-8 col-lg-6">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="mb-0">PowerPoint Files</h5>
+                        </div>
+                        <div class="card-body">
+                            <form action="{{ url_for('uplaod_file') }}" method="POST" enctype="multipart/form-data" class="mb-4">
+                                <div class="input-group">
+                                    <input type="file" name="file" class="form-control" required>
+                                    <button type="submit" class="btn btn-primary">Upload</button>
+                                </div>
+                            </form>
+                            <ul class="list-group list-group-flush" style="max-height: 300px; overflow-y: auto;">
+                                {% for file in files %}
+                                <li class="list-group-item"><a href="{{ url_for('display', filename=file) }}">{{ file }}</a></li>
+                                {% else %}
+                                <li class="list-group-item text-muted">No files have been uploaded yet.</li>
+                                {% endfor %}
+                            </ul>
+                        </div>
+                    </div>
                 </div>
-                <ul class="list-group list-group-flush" style="overflow: auto;" >
-                    {% for file in files %}
-                    <li class="list-group-item"><a href="{{ url_for('display', filename=file) }}">{{ file }}</a></li>
-                    {% endfor %}
-                </ul>
             </div>
-            
+        </div>
     </main>
     <footer style= "background-color:#e8f2fc; padding: 2%; margin: auto; margin-top: 20px;" >
         © 2021 Copyright:
