@@ -266,10 +266,11 @@ def add_tags(name):
 # ... other functions ...
 
 def add_tag(tag_name):
-    conn = get_db()
-    cursor = conn.cursor()
+    db_ob = get_db()
+    cursor = db_ob.cursor()
     cursor.execute("INSERT INTO tagList (tag) VALUES (?)", (tag_name,))
-    conn.commit()
+    db_ob.commit()
+    return cursor.lastrowid # Return the ID of the newly inserted tag
 
 def tag_exists(tag_name):
     conn = get_db()
@@ -282,7 +283,15 @@ def tag_exists(tag_name):
 def delete_tag(tag_id):
     conn = get_db()
     cursor = conn.cursor()
-    cursor.execute("DELETE FROM tagList WHERE t_id = ?", (tag_id,))
+    cursor.execute("DELETE FROM tagList WHERE t_id = ?", (tag_id,)) # Use t_id for deletion
+    conn.commit()
+    return cursor.rowcount # Return the number of rows deleted
+
+# New function to update a tag's name
+def update_tag(tag_id, new_name):
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("UPDATE tagList SET tag = ? WHERE t_id = ?", (new_name, tag_id))
     conn.commit()
 
 

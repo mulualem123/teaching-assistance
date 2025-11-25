@@ -258,7 +258,9 @@ function selectSuggestion(suggestion) {
 
 // Filter Functionality
 function filterMezmurs() {
-    const searchTerm = document.getElementById('searchInput').value.trim().toLowerCase();
+    const searchInput = document.getElementById('searchInput');
+    // Gracefully handle cases where search input may not exist
+    const searchTerm = searchInput ? searchInput.value.trim().toLowerCase() : '';
     
     // Get selected tags from desktop, mobile dropdown, and mobile swipe checkboxes
     const desktopTags = Array.from(document.querySelectorAll('.tag-list input:checked'))
@@ -296,17 +298,19 @@ function filterMezmurs() {
 // Mobile Tag Dropdown Functionality
 function updateMobileTagsDisplay() {
     const selectedCheckboxes = document.querySelectorAll('.mobile-tag-checkbox:checked');
-    const selectedTagsText = document.getElementById('selectedTagsText');
+    const selectedTagsTextElement = document.getElementById('selectedTagsText');
     
+    if (!selectedTagsTextElement) return;
+
     if (selectedCheckboxes.length === 0) {
-        selectedTagsText.textContent = 'Select Tags';
-        selectedTagsText.className = 'text-muted';
+        selectedTagsTextElement.textContent = 'Select Tags';
+        selectedTagsTextElement.classList.add('text-muted');
     } else if (selectedCheckboxes.length === 1) {
-        selectedTagsText.textContent = selectedCheckboxes[0].value;
-        selectedTagsText.className = '';
+        selectedTagsTextElement.textContent = selectedCheckboxes[0].value;
+        selectedTagsTextElement.classList.remove('text-muted');
     } else {
-        selectedTagsText.textContent = `${selectedCheckboxes.length} tags selected`;
-        selectedTagsText.className = '';
+        selectedTagsTextElement.textContent = `${selectedCheckboxes.length} tags selected`;
+        selectedTagsTextElement.classList.remove('text-muted');
     }
 }
 
@@ -1026,13 +1030,13 @@ async function addToPlaylist(event, mezmurId, playlistId) {
         const modalId = `collectionsModal${mezmurId}`;
         const modalElement = document.getElementById(modalId);
 
+        // Correctly get the existing modal instance to hide it.
+        // Do not create a new one if it doesn't exist.
         if (modalElement) {
-            const modalInstance = bootstrap.Modal.getInstance(modalElement) || new bootstrap.Modal(modalElement);
-            modalInstance.hide();
-
-            // Remove modal backdrop if needed
-            const backdrops = document.querySelectorAll('.modal-backdrop');
-            backdrops.forEach(backdrop => backdrop.remove());
+            const modalInstance = bootstrap.Modal.getInstance(modalElement);
+            if (modalInstance) {
+                modalInstance.hide();
+            }
         }
     } catch (error) {
         showToast(error.message, 'error');
@@ -1807,6 +1811,16 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
+    // Accessibility fix: Return focus to the body when any modal is closed.
+    // This prevents the "aria-hidden" warning where focus gets trapped in a hidden modal.
+    document.querySelectorAll('.modal').forEach(modal => {
+        modal.addEventListener('hidden.bs.modal', function () {
+            // Set a brief timeout to ensure the modal is fully hidden before shifting focus.
+            setTimeout(() => {
+                document.body.focus();
+            }, 10);
+        });
+    });
     
     // Initialize modals
     const mezmurModals = document.querySelectorAll('.mezmur-modal');
@@ -1831,79 +1845,83 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 // Add mezmur model handler
-document.getElementById('addMezmurForm').addEventListener('submit', async (event) => {
-    event.preventDefault();
-    const formData = new FormData(event.target);
-    console.log("1")
-    try {
-        const response = await fetch('/add_mezmur', {
-            method: 'POST',
-            body: formData
-        });
-        console.log("2")
-        if (!response.ok) {
-            const errorData = await response.json();
-            showToast(`Error: ${errorData.error || 'Failed to add Mezmur'}`, 'error');
-            return; // Stop further execution if there's an error
+const addMezmurForm = document.getElementById('addMezmurForm');
+if (addMezmurForm) {
+    addMezmurForm.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const formData = new FormData(event.target);
+        console.log("1")
+        try {
+            const response = await fetch('/add_mezmur', {
+                method: 'POST',
+                body: formData
+            });
+            console.log("2")
+            if (!response.ok) {
+                const errorData = await response.json();
+                showToast(`Error: ${errorData.error || 'Failed to add Mezmur'}`, 'error');
+                return; // Stop further execution if there's an error
+            }
+            console.log("3")
+            const data = await response.json();
+            console.log("4")
+            showToast(data.message, 'success');
+            // Optionally, reload the page or update the mezmur list
+            console.log("5")
+            event.target.reset(); // Clear the form
+            console.log("6")
+            document.getElementById('addMezmurModal').style.display = 'none';// Close the modal
+            location.reload();
+        } catch (error) {
+            showToast(`Error: ${error.message}`, 'error');
+            console.error('Error adding Mezmur:', error);
         }
-        console.log("3")
-        const data = await response.json();
-        console.log("4")
-        showToast(data.message, 'success');
-        // Optionally, reload the page or update the mezmur list
-        console.log("5")
-        event.target.reset(); // Clear the form
-        console.log("6")
-        document.getElementById('addMezmurModal').style.display = 'none';// Close the modal
-        location.reload();
-    } catch (error) {
-        showToast(`Error: ${error.message}`, 'error');
-        console.error('Error adding Mezmur:', error);
-    }
-});
+    });
+}
 
 // ... other JavaScript code ...
 
-document.addEventListener('submit', (event) => {
-    if (event.target.classList.contains('add-tag-form')) {
-        event.preventDefault();
-        const formData = new FormData(event.target);
-        (async () => {
-            try {
-                const response = await fetch('/add_tag', {
-                    method: 'POST',
-                    body: formData
-                });
-                if (!response.ok) {
-                    const errorData = await response.json();
-                    showToast(`Error: ${errorData.error}`, 'error');
-                    return;
-                }
-                const data = await response.json();
-                showToast(data.message, 'success');
-                // Update the UI to show the new tag
-                const tagCloud = document.querySelector('.tag-cloud');
-                if (tagCloud) {
-                    const newInput = document.createElement('input');
-                    newInput.type = 'checkbox';
-                    newInput.name = 'tag';
-                    newInput.value = data.tag.toLowerCase();
-                    newInput.id = `tag-${data.tag.toLowerCase().replace(/\s/g, '-')}`;
+function handleAddTagSubmit(event) {
+    event.preventDefault();
+    const form = event.target;
+    const formData = new FormData(form);
+    const tagName = formData.get('tag_name');
 
-                    const newLabel = document.createElement('label');
-                    newLabel.htmlFor = newInput.id;
-                    newLabel.appendChild(newInput);
-                    newLabel.appendChild(document.createTextNode(data.tag));
-
-                    tagCloud.appendChild(newLabel);
-                }
-                event.target.reset(); // Clear the form
-            } catch (error) {
-                showToast(`Error: ${error.message}`, 'error');
-                console.error('Error adding tag:', error);
-            }
-        })();
+    if (!tagName || tagName.trim() === '') {
+        showToast('Tag name cannot be empty.', 'warning');
+        return;
     }
+
+    fetch('/add_tag', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => {
+        if (!response.ok) {
+            return response.json().then(err => { throw new Error(err.error || 'Failed to add tag'); });
+        }
+        return response.json();
+    })
+    .then(data => {
+        showToast(data.message, 'success');
+        form.reset(); // Clear the form
+
+        // Reload the page to ensure all tag lists (desktop, mobile, swipe) are updated consistently.
+        // This is the simplest and most reliable way to reflect the new tag everywhere.
+        location.reload();
+    })
+    .catch(error => {
+        showToast(`Error: ${error.message}`, 'error');
+        console.error('Error adding tag:', error);
+    });
+}
+
+// Attach event listeners to both "add tag" forms
+document.addEventListener('DOMContentLoaded', () => {
+    const addTagForms = document.querySelectorAll('.add-tag-form');
+    addTagForms.forEach(form => {
+        form.addEventListener('submit', handleAddTagSubmit);
+    });
 });
 
 // Add at the end of mezmur.js
@@ -1911,3 +1929,44 @@ window.addEventListener('error', function(e) {
     showToast(`Unexpected error: ${e.message}`, 'error');
     console.error('Global Error:', e);
 });
+
+
+// Mezmur Sharing Functions
+function copyMezmurLyrics(mezmurId) {
+    const textarea = document.getElementById(`lyrics-${mezmurId}`);
+    if (textarea) {
+        textarea.select();
+        document.execCommand('copy');
+        showToast('Lyrics copied to clipboard!', 'success');
+    } else {
+        showToast('Could not find lyrics to copy.', 'error');
+    }
+}
+
+function shareOnWhatsApp(mezmurId) {
+    const textarea = document.getElementById(`lyrics-${mezmurId}`);
+    if (textarea) {
+        const text = encodeURIComponent(textarea.value);
+        const audioUrl = encodeURIComponent(`${window.location.origin}/audio/${mezmurId}`);
+        const shareText = `${text}\n\nListen to the audio: ${audioUrl}`;
+        
+        const whatsappUrl = `https://api.whatsapp.com/send?text=${shareText}`;
+        window.open(whatsappUrl, '_blank');
+    } else {
+        showToast('Could not find content to share.', 'error');
+    }
+}
+
+function shareOnTelegram(mezmurId) {
+    const textarea = document.getElementById(`lyrics-${mezmurId}`);
+    if (textarea) {
+        const text = textarea.value;
+        const audioUrl = `${window.location.origin}/audio/${mezmurId}`;
+        const shareText = `${text}\n\nListen to the audio: ${audioUrl}`;
+
+        const telegramUrl = `https://t.me/share/url?url=${encodeURIComponent(audioUrl)}&text=${encodeURIComponent(text)}`;
+        window.open(telegramUrl, '_blank');
+    } else {
+        showToast('Could not find content to share.', 'error');
+    }
+}

@@ -603,6 +603,13 @@ def delete (id):
                             form = form
                            )
     
+def generate_timed_lyrics(lyrics_text):
+    if not lyrics_text:
+        return ""
+    lines = lyrics_text.strip().split('\n')
+    timed_lines = [f"[00:00.000]{line.strip()}" for line in lines if line.strip()]
+    return '\n'.join(timed_lines)
+
 @app.route('/update/<id>',  methods=['GET', 'POST'])
 @login_required
 def update (id):
@@ -628,6 +635,9 @@ def update (id):
     #variable to be only passed or (updated and passed)
     latin_text = mezdata[4] 
     engTrans = mezdata[5]
+    timed_geez = mezdata[6]
+    timed_latin = mezdata[7]
+    timed_english = mezdata[8]
     selected_mez_tags = db.get_selectedMezTags(id)
     
     for tag in selected_mez_tags:
@@ -652,9 +662,26 @@ def update (id):
         engTrans = googletransfun.translate_tig_eng(mezdata[3])
         db.set_engTrans(engTrans,id)
         print ("English translate to be passed to update page is " + str(engTrans))
+
+    if timed_geez is None or timed_geez.strip() == "":
+        print("Timed Geez is empty or null, generating from Azmach")
+        timed_geez = generate_timed_lyrics(mezdata[3])
+
+    if timed_latin is None or timed_latin.strip() == "":
+        print("Timed Latin is empty or null, generating from Azmachen")
+        timed_latin = generate_timed_lyrics(latin_text)
+
+    if timed_english is None or timed_english.strip() == "":
+        print("Timed English is empty or null, generating from Hymn")
+        timed_english = generate_timed_lyrics(engTrans)
+    
+    mezdata_list = list(mezdata)
+    mezdata_list[6] = timed_geez
+    mezdata_list[7] = timed_latin
+    mezdata_list[8] = timed_english
         
     return render_template("update.html", 
-                           mezmur=mezdata,
+                           mezmur=mezdata_list,
                            engTrat = googletransfun.check_language_type(mezdata[3]),
                            translated_text = googletransfun.translate_tig_eng(mezdata[3]),
                            latin_text = latin_text,
@@ -685,6 +712,9 @@ def pushupdate():
         db.set_azmach(geez_text, mezmur_id)
         db.set_azmachen(alpha_text, mezmur_id)
         db.set_engTrans(engTrans, mezmur_id)
+        db.set_timed_geez(timed_geez, mezmur_id)
+        db.set_timed_latin(timed_latin, mezmur_id)
+        db.set_timed_english(timed_english, mezmur_id)
 
         # First, attempt to get an uploaded audio file.
         uploaded_filename = upload(rq.files)
@@ -804,40 +834,64 @@ def search():
     return render_template("mezmur.html",files = os.listdir(pp_parent_folder), search_term=search_term, rows= results)
 
 
-@app.route('/add_tag', methods=['POST'])
-def add_tag():
-    if rq.method == 'POST':
-        tag_name = rq.form.get('tag_name').strip().lower()
-        if not tag_name:
-            return jsonify({'error': 'Tag name cannot be empty'}), 400
-
-        if db.tag_exists(tag_name):
-            return jsonify({'error': 'Tag already exists'}), 409
-
-        db.add_tag(tag_name)
-        return jsonify({'message': 'Tag added successfully', 'tag': tag_name}), 201
-
-    return jsonify({'error': 'Invalid request method'}), 405
-
 #Add tag to list through form
 @app.route('/add_tag_form', methods=['GET', 'POST'])
 def add_tag_form():
+    # This route is primarily for displaying the tag management page.
+    # POST requests for adding tags are now handled by the /add_tag API endpoint.
+    return render_template("add_tag_form.html", tags=db.get_taglist())
+
+# API endpoint for adding a tag (used by AJAX from add_tag_form.html)
+@app.route('/add_tag', methods=['POST'])
+def add_tag():
     if rq.method == 'POST':
-        tag_name = rq.form.get('name')
-        db.add_tags(tag_name)
-        return redirect(url_for('add_tag_form'))
-    return render_template("tags.html", tags=db.get_taglist()) 
+        tag_name = rq.form.get('tag_name').strip()
+        if not tag_name:
+            return jsonify({'error': 'Tag name cannot be empty'}), 400
+
+        # Check if tag already exists (case-insensitive)
+        if db.tag_exists(tag_name):
+            return jsonify({'error': 'Tag already exists'}), 409
+
+        try:
+            new_tag_id = db.add_tag(tag_name) # db.add_tag now returns the new ID
+            return jsonify({'message': 'Tag added successfully', 'tag': tag_name, 'tag_id': new_tag_id}), 201
+        except Exception as e:
+            app.logger.error(f"Error adding tag: {e}")
+            return jsonify({'error': 'Failed to add tag'}), 500
+
+    return jsonify({'error': 'Invalid request method'}), 405
  
 #Delete_tag  
 @app.route('/delete_tag/<int:tag_id>', methods=['POST'])
-def delete_tag(tag_id):
+@login_required
+@roles_required('admin', 'mezmur_editor') # Only admins or mezmur editors can delete tags
+def delete_tag_api(tag_id):
     try:
-        db.delete_tag(tag_id)  # Call your database function to delete the tag
-        flash('Tag deleted successfully!', 'success')
-        return redirect(url_for('add_tag_form'))  # Redirect to the tag management page
+        rows_affected = db.delete_tag(tag_id)
+        if rows_affected > 0:
+            return jsonify({'message': 'Tag deleted successfully'}), 200
+        else:
+            return jsonify({'error': 'Tag not found'}), 404
     except Exception as e:
-        flash(f'Error deleting tag: {e}', 'error')
-        return redirect(url_for('add_tag_form'))
+        app.logger.error(f"Error deleting tag {tag_id}: {e}")
+        return jsonify({'error': 'Failed to delete tag'}), 500
+
+# API endpoint for updating a tag (used by AJAX from add_tag_form.html)
+@app.route('/update_tag/<int:tag_id>', methods=['POST'])
+@login_required
+@roles_required('admin', 'mezmur_editor') # Only admins or mezmur editors can update tags
+def update_tag_api(tag_id):
+    try:
+        data = rq.get_json()
+        new_name = data.get('new_name', '').strip()
+        if not new_name:
+            return jsonify({'error': 'New tag name cannot be empty'}), 400
+        db.update_tag(tag_id, new_name)
+        return jsonify({'message': 'Tag updated successfully', 'tag': new_name}), 200
+    except Exception as e:
+        app.logger.error(f"Error updating tag {tag_id}: {e}")
+        return jsonify({'error': 'Failed to update tag'}), 500
 
 #Attach a Tag to a Mezmur
 @app.route('/add_tag_to_mezmur/<int:mez_id>', methods=['GET', 'POST'])

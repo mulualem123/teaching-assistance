@@ -177,6 +177,7 @@ document.addEventListener('DOMContentLoaded', function() {
     let currentIndex = 0;
     let audioPlayer = null;
     let currentSongId = null;
+    let audioModalInstance = null; // Variable to hold the single modal instance
     let lyricsData = null;
 
     // Initialize audio player
@@ -190,6 +191,14 @@ document.addEventListener('DOMContentLoaded', function() {
             title: item.querySelector('h6').textContent,
             audioUrl: `/audio/${item.dataset.songId}`
         }));
+
+        // Initialize the modal instance ONCE
+        const audioModalEl = document.getElementById('audioPlayerModal');
+        if (audioModalEl) {
+            audioModalInstance = new bootstrap.Modal(audioModalEl);
+            // Add an event listener to pause audio when the modal is closed
+            audioModalEl.addEventListener('hidden.bs.modal', () => audioPlayer.pause());
+        }
     }
 
     // Play single song
@@ -268,8 +277,10 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('currentSongDetails').textContent = `Song ${index + 1} of ${currentPlaylist.length}`;
         
         // Show modal and play
-        const audioModal = new bootstrap.Modal(document.getElementById('audioPlayerModal'));
-        audioModal.show();
+        // Use the single, persistent modal instance
+        if (audioModalInstance) {
+            audioModalInstance.show();
+        }
         
         // Automatically load lyrics when song starts
         loadLyricsForPlayer(song.id);

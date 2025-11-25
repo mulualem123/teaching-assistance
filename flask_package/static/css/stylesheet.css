@@ -208,8 +208,8 @@
 
 /* Search Box Styles */
 .search-box {
-    max-width: 400px;
-    margin: 1rem auto;
+    max-width: 600px; /* Increased width for better visibility */
+    margin: auto; /* Center the search box */
 }
 
 /* Filter Sidebar Styles */
@@ -351,11 +351,6 @@
 }
 
 
-/* Masonry Layout Override */
-#mezmurGrid {
-    margin: 0 !important;
-}
-
 /* Ensure Bootstrap responsive grid works properly */
 .mezmur-card-container {
     margin-bottom: 1.5rem !important;
@@ -394,9 +389,6 @@
 .mezmur-card {
     height: 100%;
     min-height: 200px;
-}
-#mezmurGrid {
-    /*display: block !important;*/ /* Override Bootstrap's flex display */
 }
 
 /* Z-index for Dropdown Menu (to appear above other elements) */
@@ -794,6 +786,7 @@
 .tag-list-mobile .form-check {
     padding: 0.25rem 0;
     border-bottom: 1px solid #f1f3f4;
+    padding-left: 1.5rem; /* Add padding to prevent content from touching the edge */
 }
 
 .tag-list-mobile .form-check:last-child {
@@ -949,4 +942,22 @@
 
 .text-center a:hover {
     text-decoration: underline;
+}
+.tag-actions {
+    opacity: 0;
+    transition: opacity 0.2s ease-in-out;
+}
+
+.list-group-item:hover .tag-actions {
+    opacity: 1;
+}
+
+.tag-actions .btn {
+    padding: 0.1rem 0.4rem;
+    font-size: 0.8rem;
+}
+
+.tag-name {
+    font-weight: 500;
+    color: #343a40;
 }

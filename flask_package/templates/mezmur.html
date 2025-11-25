@@ -29,12 +29,16 @@
     {% include 'navbar.html' %}
     <div class="main-content-wrapper">
         <main class="container py-5">
+            <!-- Search Bar - Visible on all devices -->
+            <div class="mb-4">
+                <input type="text" class="form-control search-box mx-auto" placeholder="Search mezmurs by title or lyrics..." id="searchInput">
+            </div>
+
             <div class="row g-4">
                 <!-- Filter Sidebar -->
-                <div class="col-lg-3">
+                <div class="col-lg-3 d-none d-lg-block">
                     <div class="filter-sidebar sticky-sidebar">
                         <h5 class="mb-3">🔍 Filter Mezmurs</h5>
-                        <input type="text" class="form-control search-box mb-3" placeholder="Search mezmurs..." id="searchInput">
 
                         <div class="mb-4">
                             <h6>📚 Categories</h6>
@@ -63,7 +67,7 @@
                         <div class="tag-cloud">
                             <h6>🏷️ Popular Tags 
                                 {% if current_user.is_authenticated and ('admin' in current_user.roles or 'mezmur_editor' in current_user.roles) %}
-                                <a href="/add_tag_form"> <i class="bi bi-arrow-bar-right"></i></a>
+                                <a href="{{ url_for('add_tag_form') }}"> <i class="bi bi-arrow-bar-right"></i></a>
                                 {%endif%}
                             </h6>
 
@@ -153,28 +157,6 @@
                                                                     <p class="text-muted small mb-1">{{ playlist.description }}</p>
                                                                     <span class="badge bg-secondary small">{{ playlist.song_count }} hymns</span>
                                                                 </div>
-                                                                <div class="dropdown ms-2" onclick="event.stopPropagation()">
-                                                                    <button class="btn btn-link p-0 text-muted" 
-                                                                            type="button" 
-                                                                            data-bs-toggle="dropdown">
-                                                                        <i class="bi bi-three-dots-vertical"></i>
-                                                                    </button>
-                                                                    <ul class="dropdown-menu dropdown-menu-end">
-                                                                        <li>
-                                                                            <button class="dropdown-item" 
-                                                                                    onclick="loadPlaylist({{ playlist.id }})">
-                                                                                <i class="bi bi-folder2-open me-2"></i>Open
-                                                                            </button>
-                                                                        </li>
-                                                                        <li>
-                                                                            <button class="dropdown-item"
-                                                                                    onclick="toggleSharePlaylist({{ playlist.id }}, this)">
-                                                                                <i class="bi bi-share me-2"></i>
-                                                                                {% if playlist.shared %}Unshare{% else %}Share{% endif %}
-                                                                            </button>
-                                                                        </li>
-                                                                    </ul>
-                                                                </div>
                                                             </div>
                                                         </div>
                                                     </div>
@@ -248,8 +230,13 @@
                             <div class="swipe-slide">
                                 <div class="card h-100">
                                     <div class="card-header bg-info text-white">
-                                        <h6 class="mb-0"><i class="bi bi-tags me-2"></i>Popular Tags</h6>
-                                    </div>
+                                        <div class="d-flex justify-content-between align-items-center">
+                                            <h6 class="mb-0"><i class="bi bi-tags me-2"></i>Popular Tags</h6>
+                                            {% if current_user.is_authenticated and ('admin' in current_user.roles or 'mezmur_editor' in current_user.roles) %}
+                                            <a href="{{ url_for('add_tag_form') }}" class="text-white"> <i class="bi bi-arrow-bar-right"></i></a>
+                                            {% endif %}
+                                        </div>
+                                    </div>                                    
                                     <div class="card-body p-2">
                                         <div class="mb-3">
                                             <h6 class="small">Filter Type</h6>
@@ -282,6 +269,15 @@
                                                     <i class="bi bi-x-circle me-2"></i>Clear All Tags
                                                 </button>
                                             </div>
+
+                                            {% if current_user.is_authenticated and ('admin' in current_user.roles or 'mezmur_editor' in current_user.roles) %}
+                                            <form method="POST" action="/add_tag" class="add-tag-form mt-3">
+                                                <div class="input-group">
+                                                    <input type="text" name="tag_name" class="form-control" placeholder="Add new tag">
+                                                    <button type="submit" class="btn btn-outline-primary"><i class="bi bi-plus"></i></button>
+                                                </div>
+                                            </form>
+                                            {% endif %}
                                         </div>
                                     </div>
                                 </div>
@@ -333,7 +329,7 @@
                     </div>
                     {% endif %}
                     <!-- End Shared Playlists Section -->
-                    <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4" id="mezmurGrid">
+                    <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4 justify-content-center" id="mezmurGrid">
                         {% for row in rows %}
                         <div class="col mezmur-card-container" data-lyrics="{{ row[3] }} {{ row[5] }}">
                             <div class="card mezmur-card h-100" 
@@ -366,6 +362,14 @@
                                                 <li>
                                                     <a class="dropdown-item" href="{{ url_for('update',id=row[0]) }}">
                                                         Edit Mezmur
+                                                    </a>
+                                                </li>
+                                                <li><hr class="dropdown-divider"></li>
+                                                <li>
+                                                    <a class="dropdown-item" href="#"
+                                                       data-bs-toggle="modal"
+                                                       data-bs-target="#shareMezmurModal{{ row[0] }}">
+                                                        <i class="bi bi-share me-2"></i>Share
                                                     </a>
                                                 </li>
                                                 {% endif %}
@@ -425,6 +429,50 @@
                                 </div>
                             </div>
                         </div>
+
+                        <!-- Share Mezmur Modal -->
+                        <div class="modal fade" id="shareMezmurModal{{ row[0] }}" tabindex="-1" aria-labelledby="shareMezmurModalLabel{{ row[0] }}" aria-hidden="true">
+                            <div class="modal-dialog modal-dialog-centered">
+                                <div class="modal-content">
+                                    <div class="modal-header">
+                                        <h5 class="modal-title" id="shareMezmurModalLabel{{ row[0] }}">Share '{{ row[1] }}'</h5>
+                                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                    </div>
+                                    <div class="modal-body">
+                                        <p>Choose how you'd like to share this hymn:</p>
+                                        <div class="d-grid gap-2">
+                                            <button class="btn btn-outline-secondary" onclick="copyMezmurLyrics({{ row[0] }})">
+                                                <i class="bi bi-clipboard me-2"></i>Copy Lyrics
+                                            </button>
+                                            <a href="{{ url_for('audio', id=row[0]) }}" download="{{ row[1] }}.mp3" class="btn btn-outline-primary">
+                                                <i class="bi bi-download me-2"></i>Download Audio
+                                            </a>
+                                            <button class="btn btn-success" onclick="shareOnWhatsApp({{ row[0] }})">
+                                                <i class="bi bi-whatsapp me-2"></i>Share on WhatsApp
+                                            </button>
+                                            <button class="btn btn-info text-white" onclick="shareOnTelegram({{ row[0] }})">
+                                                <i class="bi bi-telegram me-2"></i>Share on Telegram
+                                            </button>
+                                        </div>
+                                        <textarea id="lyrics-{{ row[0] }}" style="opacity: 0; position: absolute; left: -9999px;">
+Title: {{ row[1] }}
+
+Ge'ez Lyrics:
+{{ row[3] }}
+
+Phonetic Lyrics:
+{{ row[4] }}
+
+English Translation:
+{{ row[5] }}
+                                        </textarea>
+                                    </div>
+                                    <div class="modal-footer">
+                                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                         {% endfor %}
                     </div>
                 </div>
@@ -458,47 +506,6 @@
                                 <h5 class="mb-1">{{ playlist.name }}</h5>
                                 <p class="text-muted small mb-0">{{ playlist.description }}</p>
                                 <span class="badge bg-secondary">{{playlist.song_count}} hymns</span>
-                            </div>
-    
-                            <!-- Three-dot Menu -->
-                            <div class="dropdown ms-2" onclick="event.stopPropagation()">
-                                <button class="btn btn-link p-0 text-muted" 
-                                        type="button" 
-                                        data-bs-toggle="dropdown">
-                                    <i class="bi bi-three-dots-vertical"></i>
-                                </button>
-                                <ul class="dropdown-menu dropdown-menu-end">
-                                    <!-- Open Button -->
-                                    <li>
-                                        <button class="dropdown-item" 
-                                                data-load-playlist
-                                                onclick="loadPlaylist({{ playlist.id }})"  
-                                                data-playlist-id="{{ playlist.id }}">
-                                            <i class="bi bi-folder2-open me-2"></i>Open
-                                        </button>
-                                    </li>
-                                    <!-- Share Option -->
-                                    <li>
-                                        <button class="dropdown-item"
-                                                onclick="toggleSharePlaylist({{ playlist.id }}, this)">
-                                            <i class="bi bi-share me-2"></i>
-                                            <span class="share-text">
-                                                {% if playlist.shared %}Unshare{% else %}Share{% endif %}
-                                            </span>
-                                        </button>
-                                    </li>
-
-                                    
-                                    <!-- Delete Option -->
-                                    {% if current_user.is_authenticated and ('admin' in current_user.roles or 'mezmur_editor' in current_user.roles) %}
-                                    <li>
-                                        <button class="dropdown-item text-danger" 
-                                                onclick="event.stopPropagation(); deletePlaylist({{ playlist.id }})">
-                                            <i class="bi bi-trash me-2"></i>Delete
-                                        </button>
-                                    </li>
-                                    {% endif %}
-                                </ul>
                             </div>
                         </div>
                     </div>
@@ -792,8 +799,8 @@
     <!-- Scripts -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/masonry/4.2.2/masonry.pkgd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="{{ url_for('static', filename='js/mezmur.js')}}"></script>
-    <script src="{{ url_for('static', filename='js/audio.js')}}"></script>
+    <script src="{{ url_for('static', filename='js/mezmur.js')}}" defer></script>
+    <script src="{{ url_for('static', filename='js/audio.js')}}" defer></script>
     <script>
        
     </script>
