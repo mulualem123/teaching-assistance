@@ -31,7 +31,91 @@
         <main class="container py-5">
             <!-- Search Bar - Visible on all devices -->
             <div class="mb-4">
-                <input type="text" class="form-control search-box mx-auto" placeholder="Search mezmurs by title or lyrics..." id="searchInput">
+                <input type="text" class="form-control search-box mx-auto" placeholder="Search mezmurs by title or lyrics..." id="searchInput" aria-label="Search mezmurs by title or lyrics">
+            </div>
+
+            <!-- Action toolbar (always visible) -->
+            <div class="mb-3" id="filterActionsBar">
+                <div class="d-flex gap-2 align-items-center">
+                    <!-- Save button visible to all; JS redirects to login if unauthenticated -->
+                    <button id="saveFilterBtn" class="btn btn-sm btn-outline-primary" aria-label="Save current filter" type="button"
+                        {% if current_user.is_authenticated %}
+                            data-bs-toggle="modal" data-bs-target="#saveFilterModal" data-auth="1"
+                        {% else %}
+                            data-auth="0"
+                        {% endif %}>
+                        <i class="bi bi-save me-1" aria-hidden="true"></i> Save filter
+                    </button>
+
+                    <button id="viewSavedFiltersBtn" class="btn btn-sm btn-outline-info" aria-label="View saved filters" type="button"
+                        {% if current_user.is_authenticated %}
+                            data-bs-toggle="modal" data-bs-target="#savedFiltersListModal" data-auth="1"
+                        {% else %}
+                            data-auth="0"
+                        {% endif %}>
+                        <i class="bi bi-journal-bookmark me-1" aria-hidden="true"></i> My saved filters
+                    </button>
+
+                    <button id="shareFilterBtn" class="btn btn-sm btn-outline-secondary" aria-label="Share current filter" type="button">
+                        <i class="bi bi-share me-1" aria-hidden="true"></i> Share
+                    </button>
+
+                    <div class="ms-auto text-muted small">Tip: use search and tags then Save to keep filters</div>
+                </div>
+            </div>
+
+            <!-- Active filters / chips -->
+            <div id="activeFiltersContainer" class="mb-3 d-none" aria-live="polite">
+                <!-- JS will render active filter chips here -->
+            </div>
+
+            <!-- Save Filter Modal -->
+            <div class="modal fade" id="saveFilterModal" tabindex="-1" aria-labelledby="saveFilterModalLabel" aria-hidden="true">
+                <div class="modal-dialog modal-dialog-centered">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title" id="saveFilterModalLabel">Save filters</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="mb-3">
+                                <label for="savedFilterName" class="form-label">Filter name</label>
+                                <input id="savedFilterName" class="form-control" type="text" placeholder="My Sunday filters" aria-label="Saved filter name">
+                            </div>
+                            <div class="form-check mb-3">
+                                <input class="form-check-input" type="checkbox" id="saveFilterIsPublic">
+                                <label class="form-check-label" for="saveFilterIsPublic">Make this filter public (shareable)</label>
+                            </div>
+                            <div class="form-text small text-muted">This saves the search, tags and match type for later.</div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                            <button id="confirmSaveFilterBtn" type="button" class="btn btn-primary">Save</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Saved Filters List Modal -->
+            <div class="modal fade" id="savedFiltersListModal" tabindex="-1" aria-labelledby="savedFiltersListModalLabel" aria-hidden="true">
+                <div class="modal-dialog modal-dialog-centered modal-lg">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title" id="savedFiltersListModalLabel">My saved filters</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body" id="savedFiltersListBody">
+                            <div class="text-center py-4" id="savedFiltersLoading">
+                                <div class="spinner-border text-primary" role="status"><span class="visually-hidden">Loading...</span></div>
+                                <p class="mt-2">Loading saved filters...</p>
+                            </div>
+                            <!-- JS will populate list here -->
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <div class="row g-4">
@@ -41,8 +125,8 @@
                         <h5 class="mb-3">🔍 Filter Mezmurs</h5>
 
                         <div class="mb-4">
-                            <h6>📚 Categories</h6>
-                            <div class="form-check">
+                            <h6 id="operatorGroupLabel">📚 Categories</h6>
+                            <div class="form-check" role="radiogroup" aria-labelledby="operatorGroupLabel">
                                 <input class="form-check-input" type="radio" name="operator" id="operatorOr" checked>
                                 <label class="form-check-label" for="operatorOr">Any Tag (OR)</label>
                             </div>
@@ -65,14 +149,14 @@
                         </div> -->
                         
                         <div class="tag-cloud">
-                            <h6>🏷️ Popular Tags 
+                            <h6 id="popularTagsLabel">🏷️ Popular Tags 
                                 {% if current_user.is_authenticated and ('admin' in current_user.roles or 'mezmur_editor' in current_user.roles) %}
                                 <a href="{{ url_for('add_tag_form') }}"> <i class="bi bi-arrow-bar-right"></i></a>
                                 {%endif%}
                             </h6>
 
                             <!-- Desktop View: Show as list -->
-                            <div class="tag-list d-none d-lg-block">
+                            <div class="tag-list d-none d-lg-block" role="group" aria-labelledby="popularTagsLabel">
                                 {% for tag in tags %}
                                 <div class="form-check">
                                     <input class="form-check-input" type="checkbox" value="{{ tag.tag }}" id="tag{{ loop.index }}">
@@ -239,8 +323,8 @@
                                     </div>                                    
                                     <div class="card-body p-2">
                                         <div class="mb-3">
-                                            <h6 class="small">Filter Type</h6>
-                                            <div class="form-check form-check-inline">
+                                            <h6 class="small" id="mobileOperatorLabel">Filter Type</h6>
+                                            <div class="form-check form-check-inline" role="radiogroup" aria-labelledby="mobileOperatorLabel">
                                                 <input class="form-check-input" type="radio" name="mobileOperator" id="mobileOperatorOr" checked>
                                                 <label class="form-check-label small" for="mobileOperatorOr">Any</label>
                                             </div>
@@ -265,8 +349,8 @@
                                             
                                             <div class="mt-3">
                                                 <button class="btn btn-sm btn-outline-danger w-100" 
-                                                        onclick="clearAllTagsMobile()">
-                                                    <i class="bi bi-x-circle me-2"></i>Clear All Tags
+                                                        onclick="clearAllFilters()">
+                                                    <i class="bi bi-x-circle me-2"></i>Clear all filters
                                                 </button>
                                             </div>
 
@@ -331,7 +415,7 @@
                     <!-- End Shared Playlists Section -->
                     <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4 justify-content-center" id="mezmurGrid">
                         {% for row in rows %}
-                        <div class="col mezmur-card-container" data-lyrics="{{ row[3] }} {{ row[5] }}">
+                        <div class="col mezmur-card-container" data-m-id="{{ row[0] }}" data-lyrics="{{ row[3] }} {{ row[5] }}">
                             <div class="card mezmur-card h-100" 
                                  style="cursor: pointer;"
                                  onclick="event.target.closest('.dropdown') || document.getElementById('mezmurModalTrigger{{ row[0] }}').click()">

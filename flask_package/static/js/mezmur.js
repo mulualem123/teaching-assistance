@@ -8,6 +8,94 @@ let currentPlayer = {
 };
 let masonry = null;
 
+// Centralized filter state store
+let filterState = {
+    q: '',        // search query
+    tags: [],     // array of tag names (original case)
+    op: 'or',     // 'or' or 'and'
+    page: 1,
+    perPage: 24
+};
+
+// Fuse.js index for fuzzy search (created lazily for moderate dataset sizes)
+let fuse = null;
+const FUSE_INDEX_LIMIT = 1500; // only index up to this many items on client to avoid memory/CPU overhead
+
+function ensureFuseIndex() {
+    if (fuse) return fuse;
+
+    const cards = Array.from(document.querySelectorAll('.mezmur-card-container'));
+    if (cards.length === 0 || cards.length > FUSE_INDEX_LIMIT) return null;
+
+    const list = cards.map(card => {
+        const id = card.getAttribute('data-m-id');
+        const titleEl = card.querySelector('.card-title');
+        const title = titleEl ? titleEl.textContent.trim() : '';
+        const lyrics = card.dataset.lyrics || '';
+        const tags = Array.from(card.querySelectorAll('.tag-pill')).map(t => t.textContent.trim());
+
+        // store original text for highlighting
+        if (!card.dataset.originalTitle) card.dataset.originalTitle = title;
+        if (!card.dataset.originalLyrics) card.dataset.originalLyrics = lyrics;
+
+        return { id, title, lyrics, tags };
+    });
+
+    try {
+        fuse = new Fuse(list, {
+            keys: [
+                { name: 'title', weight: 0.7 },
+                { name: 'tags', weight: 0.2 },
+                { name: 'lyrics', weight: 0.1 }
+            ],
+            includeMatches: true,
+            threshold: 0.35,
+            ignoreLocation: true
+        });
+    } catch (e) {
+        console.warn('Failed to build Fuse index', e);
+        fuse = null;
+    }
+
+    return fuse;
+}
+
+function applyHighlights(query) {
+    if (!query) return clearHighlights();
+
+    // Use split words to highlight - safe approach and low cost
+    const words = query.toString().trim().split(/\s+/).filter(w => w.length > 1).map(w => w.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&'));
+    if (!words.length) return clearHighlights();
+
+    const regex = new RegExp(`(${words.join('|')})`, 'ig');
+
+    document.querySelectorAll('.mezmur-card-container:not(.filtered-out)').forEach(card => {
+        const titleEl = card.querySelector('.card-title');
+        const lyricsEl = card.querySelector('label.preserve-line-breaks');
+
+        const originalTitle = card.dataset.originalTitle || (titleEl ? titleEl.textContent : '');
+        const originalLyrics = card.dataset.originalLyrics || (lyricsEl ? lyricsEl.textContent : '');
+
+        if (titleEl) {
+            titleEl.innerHTML = originalTitle.replace(regex, '<mark>$1</mark>');
+        }
+        if (lyricsEl) {
+            // only highlight a short snippet (avoid huge replacements)
+            const snippet = originalLyrics.length > 300 ? originalLyrics.slice(0, 300) + '...' : originalLyrics;
+            lyricsEl.innerHTML = snippet.replace(regex, '<mark>$1</mark>');
+        }
+    });
+}
+
+function clearHighlights() {
+    document.querySelectorAll('.mezmur-card-container').forEach(card => {
+        const titleEl = card.querySelector('.card-title');
+        const lyricsEl = card.querySelector('label.preserve-line-breaks');
+        if (titleEl && card.dataset.originalTitle) titleEl.innerHTML = card.dataset.originalTitle;
+        if (lyricsEl && card.dataset.originalLyrics) lyricsEl.innerHTML = card.dataset.originalLyrics;
+    });
+}
+
 // Enhanced Toast System with better UX
 function showToast(message, type = 'info', duration = 4000) {
     // Remove existing toasts of same type to prevent spam
@@ -26,10 +114,15 @@ function showToast(message, type = 'info', duration = 4000) {
         background: ${getToastColor(type)};
         color: white;
         padding: 12px 16px;
-        border-radius: 8px;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-        transform: translateX(100%);
-        transition: transform 0.3s ease;
+                    document.querySelectorAll('.mezmur-card-container').forEach(card => {
+                        const mid = card.getAttribute('data-m-id');
+                        card.classList.toggle('filtered-out', !allowed.has(mid));
+                    });
+                    // Update URL and chips
+                    pushFiltersToURL();
+                    renderActiveFilterChips();
+                    applyHighlights(filterState.q);
+                    return; // done
         font-size: 0.9rem;
         line-height: 1.4;
     `;
@@ -87,7 +180,11 @@ document.addEventListener('DOMContentLoaded', function() {
     // Ensure all elements are present before adding event listeners
     const searchInput = document.getElementById('searchInput');
     if (searchInput) {
-        searchInput.addEventListener('input', filterMezmurs);
+        // Update state then apply filtering (preserve debounce in filterMezmurs)
+        searchInput.addEventListener('input', function() {
+            updateStateFromUI();
+            filterMezmurs();
+        });
     } else {
         console.error('Search input not found.');
     }
@@ -95,7 +192,9 @@ document.addEventListener('DOMContentLoaded', function() {
     // Add event listeners for both desktop and mobile tag checkboxes
     document.querySelectorAll('.tag-list .form-check-input').forEach(checkbox => {
         checkbox.addEventListener('change', function() {
-            syncDesktopToMobile();
+            // central state will be updated and then applied to other UIs and filtering will run
+            updateStateFromUI();
+            applyStateToUI();
             filterMezmurs();
         });
     });
@@ -103,7 +202,8 @@ document.addEventListener('DOMContentLoaded', function() {
     // Mobile tag dropdown event listeners
     document.querySelectorAll('.mobile-tag-checkbox').forEach(checkbox => {
         checkbox.addEventListener('change', function() {
-            syncMobileToDesktop();
+            updateStateFromUI();
+            applyStateToUI();
             updateMobileTagsDisplay();
             filterMezmurs();
         });
@@ -112,7 +212,8 @@ document.addEventListener('DOMContentLoaded', function() {
     // Mobile swipe interface tag checkboxes
     document.querySelectorAll('.mobile-tag-checkbox-swipe').forEach(checkbox => {
         checkbox.addEventListener('change', function() {
-            syncMobileSwipeToOthers();
+            updateStateFromUI();
+            applyStateToUI();
             filterMezmurs();
         });
     });
@@ -120,8 +221,9 @@ document.addEventListener('DOMContentLoaded', function() {
     // Mobile operator radio buttons
     document.querySelectorAll('input[name="mobileOperator"]').forEach(radio => {
         radio.addEventListener('change', function() {
-            const isAnd = this.id === 'mobileOperatorAnd';
-            document.getElementById(isAnd ? 'operatorAnd' : 'operatorOr').checked = true;
+            // update state and apply
+            updateStateFromUI();
+            applyStateToUI();
             filterMezmurs();
         });
     });
@@ -136,10 +238,8 @@ document.addEventListener('DOMContentLoaded', function() {
     // Operator change listeners
     document.querySelectorAll('input[name="operator"]').forEach(radio => {
         radio.addEventListener('change', function() {
-            // Sync with mobile operator
-            const isAnd = this.id === 'operatorAnd';
-            const mobileRadio = document.getElementById(isAnd ? 'mobileOperatorAnd' : 'mobileOperatorOr');
-            if (mobileRadio) mobileRadio.checked = true;
+            updateStateFromUI();
+            applyStateToUI();
             filterMezmurs();
         });
     });
@@ -161,8 +261,217 @@ document.addEventListener('DOMContentLoaded', function() {
     // Initialize audio enhancements
     initAudioEnhancements();
     
+    // Read filters from URL (if present) and apply to state + UI
+    readFiltersFromURL();
     // Skip Masonry initialization - use Bootstrap grid instead
     filterMezmurs(); // Initial filter
+
+    // Share current filter URL
+    const shareBtn = document.getElementById('shareFilterBtn');
+    if (shareBtn) {
+        shareBtn.addEventListener('click', async () => {
+            try {
+                await navigator.clipboard.writeText(location.href);
+                showToast('Filter link copied to clipboard', 'success');
+            } catch (e) {
+                // fallback
+                const dummy = document.createElement('textarea');
+                dummy.value = location.href;
+                document.body.appendChild(dummy);
+                dummy.select();
+                document.execCommand('copy');
+                dummy.remove();
+                showToast('Filter link copied to clipboard', 'success');
+            }
+        });
+    }
+
+    // Save filter (if logged-in) - button in modal
+    const confirmSaveBtn = document.getElementById('confirmSaveFilterBtn');
+    if (confirmSaveBtn) {
+        confirmSaveBtn.addEventListener('click', async () => {
+            const nameInput = document.getElementById('savedFilterName');
+            const name = nameInput ? nameInput.value.trim() : '';
+            if (!name) return showToast('Please give a name to save this filter', 'warning');
+
+            // send to server
+            try {
+                    const isPublicCheckbox = document.getElementById('saveFilterIsPublic');
+                    const payload = { name, q: filterState.q || '', tags: filterState.tags || [], op: filterState.op || 'or', is_public: !!(isPublicCheckbox && isPublicCheckbox.checked) };
+                const res = await fetch('/api/saved_filters', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                if (!res.ok) {
+                    const err = await res.json().catch(() => ({}));
+                    throw new Error(err.message || 'Save failed');
+                }
+
+                showToast('Filters saved', 'success');
+                // close modal
+                const modal = bootstrap.Modal.getInstance(document.getElementById('saveFilterModal'));
+                if (modal) modal.hide();
+            } catch (err) {
+                console.error('Save filter error', err);
+                showToast('Failed to save filters', 'error');
+            }
+        });
+    }
+
+    // When saved-filters modal is shown, load the saved filters list
+    const savedFiltersModalEl = document.getElementById('savedFiltersListModal');
+    if (savedFiltersModalEl) {
+        savedFiltersModalEl.addEventListener('show.bs.modal', loadSavedFiltersIntoModal);
+    }
+
+    // Ensure Save / ViewSaved buttons redirect unauthenticated users to login
+    const saveBtn = document.getElementById('saveFilterBtn');
+    if (saveBtn && saveBtn.getAttribute('data-auth') === '0') {
+        saveBtn.addEventListener('click', () => {
+            // redirect to login preserving current url
+            const next = encodeURIComponent(location.pathname + location.search);
+            window.location.href = `/login?next=${next}`;
+        });
+    }
+
+    const viewSavedBtn = document.getElementById('viewSavedFiltersBtn');
+    if (viewSavedBtn && viewSavedBtn.getAttribute('data-auth') === '0') {
+        viewSavedBtn.addEventListener('click', () => {
+            const next = encodeURIComponent(location.pathname + location.search);
+            window.location.href = `/login?next=${next}`;
+        });
+    }
+});
+
+// Read filters from URL and apply to UI (search input + tag checkboxes + operator)
+function readFiltersFromURL() {
+    const params = new URLSearchParams(window.location.search);
+    const q = params.get('q') || '';
+    const tagsParam = params.get('tags') || '';
+    const op = params.get('op') || 'or';
+
+    // update central state
+    filterState.q = q;
+    filterState.tags = tags;
+    filterState.op = op;
+
+    // apply into UI controls
+    applyStateToUI();
+
+    // split tags
+    const tags = tagsParam ? tagsParam.split(',').map(t => t.trim()).filter(Boolean) : [];
+
+    // apply tag selections across the three UIs
+    // desktop
+    document.querySelectorAll('.tag-list .form-check-input').forEach(cb => {
+        cb.checked = tags.includes(cb.value);
+    });
+    // mobile dropdown
+    document.querySelectorAll('.mobile-tag-checkbox').forEach(cb => {
+        cb.checked = tags.includes(cb.value);
+    });
+    // mobile swipe
+    document.querySelectorAll('.mobile-tag-checkbox-swipe').forEach(cb => {
+        cb.checked = tags.includes(cb.value);
+    });
+
+    // apply operator
+    if (op === 'and') {
+        document.getElementById('operatorAnd')?.setAttribute('checked', '');
+        document.getElementById('mobileOperatorAnd')?.setAttribute('checked', '');
+        document.getElementById('operatorOr')?.removeAttribute('checked');
+        document.getElementById('mobileOperatorOr')?.removeAttribute('checked');
+    } else {
+        document.getElementById('operatorOr')?.setAttribute('checked', '');
+        document.getElementById('mobileOperatorOr')?.setAttribute('checked', '');
+        document.getElementById('operatorAnd')?.removeAttribute('checked');
+        document.getElementById('mobileOperatorAnd')?.removeAttribute('checked');
+    }
+
+    // update mobile displays
+    updateMobileTagsDisplay();
+    // keep synced swipe controls in sync
+    syncOthersToMobileSwipe();
+}
+
+// Persist filters in the URL (and push to history)
+function pushFiltersToURL() {
+    const q = filterState.q?.trim() || '';
+    const selectedTags = Array.isArray(filterState.tags) ? filterState.tags : [];
+    const op = (filterState.op === 'and') ? 'and' : 'or';
+
+    const params = new URLSearchParams();
+    if (q) params.set('q', q);
+    if (selectedTags.length) params.set('tags', selectedTags.join(','));
+    if (op) params.set('op', op);
+
+    const url = `${location.pathname}?${params.toString()}`;
+    history.pushState({ q, tags: selectedTags, op }, '', url);
+}
+
+// Read DOM inputs, update filterState accordingly
+function updateStateFromUI() {
+    const searchInput = document.getElementById('searchInput');
+    filterState.q = searchInput ? searchInput.value.trim() : '';
+
+    // read tags from any UI (unify)
+    const desktop = Array.from(document.querySelectorAll('.tag-list input:checked')).map(cb => cb.value.trim());
+    const mobile = Array.from(document.querySelectorAll('.mobile-tag-checkbox:checked')).map(cb => cb.value.trim());
+    const swipe = Array.from(document.querySelectorAll('.mobile-tag-checkbox-swipe:checked')).map(cb => cb.value.trim());
+
+    const union = [...new Set([...(desktop || []), ...(mobile || []), ...(swipe || [])])];
+    filterState.tags = union;
+
+    // operator
+    const opRadio = document.querySelector('input[name="operator"]:checked') || document.querySelector('input[name="mobileOperator"]:checked');
+    if (opRadio) {
+        filterState.op = opRadio.id?.toLowerCase().includes('and') ? 'and' : 'or';
+    }
+
+    // reset paging when filters change
+    filterState.page = 1;
+}
+
+// Apply state to the UI elements (input, checkboxes, radios)
+function applyStateToUI() {
+    const searchInput = document.getElementById('searchInput');
+    if (searchInput) searchInput.value = filterState.q || '';
+
+    const tags = Array.isArray(filterState.tags) ? filterState.tags : [];
+
+    document.querySelectorAll('.tag-list .form-check-input').forEach(cb => {
+        cb.checked = tags.includes(cb.value);
+    });
+    document.querySelectorAll('.mobile-tag-checkbox').forEach(cb => {
+        cb.checked = tags.includes(cb.value);
+    });
+    document.querySelectorAll('.mobile-tag-checkbox-swipe').forEach(cb => {
+        cb.checked = tags.includes(cb.value);
+    });
+
+    if ((filterState.op || 'or') === 'and') {
+        document.getElementById('operatorAnd')?.setAttribute('checked', '');
+        document.getElementById('mobileOperatorAnd')?.setAttribute('checked', '');
+        document.getElementById('operatorOr')?.removeAttribute('checked');
+        document.getElementById('mobileOperatorOr')?.removeAttribute('checked');
+    } else {
+        document.getElementById('operatorOr')?.setAttribute('checked', '');
+        document.getElementById('mobileOperatorOr')?.setAttribute('checked', '');
+        document.getElementById('operatorAnd')?.removeAttribute('checked');
+        document.getElementById('mobileOperatorAnd')?.removeAttribute('checked');
+    }
+
+    // update mobile count text
+    updateMobileTagsDisplay();
+}
+
+// Handle back/forward navigation for URL-based filters
+window.addEventListener('popstate', (event) => {
+    // When the user navigates via back/forward, re-read the URL and apply filters
+    readFiltersFromURL();
+    filterMezmurs();
 });
 
 // Enhanced Search with Smart Suggestions
@@ -213,30 +522,37 @@ function initSmartSearch() {
 }
 
 function generateSearchSuggestions(query, container) {
-    const allMezmurs = Array.from(document.querySelectorAll('.mezmur-card-container'));
+    const f = ensureFuseIndex();
     const suggestions = new Set();
-    
-    allMezmurs.forEach(card => {
-        const title = card.querySelector('.card-title')?.textContent || '';
-        const lyrics = card.dataset.lyrics || '';
-        const tags = Array.from(card.querySelectorAll('.tag-pill')).map(tag => tag.textContent);
-        
-        // Add matching words from title
-        const titleWords = title.toLowerCase().split(' ').filter(word => 
-            word.includes(query.toLowerCase()) && word.length > 2
-        );
-        titleWords.forEach(word => suggestions.add(word));
-        
-        // Add matching tags
-        tags.forEach(tag => {
-            if (tag.toLowerCase().includes(query.toLowerCase())) {
-                suggestions.add(tag);
+
+    if (f) {
+        const results = f.search(query, { limit: 8 });
+        results.forEach(r => {
+            // Try to pick the first matching word or tag
+            const item = r.item;
+            if (item.title && item.title.toLowerCase().includes(query.toLowerCase())) {
+                suggestions.add(query);
+            }
+            if (Array.isArray(item.tags)) {
+                item.tags.forEach(t => { if (t.toLowerCase().includes(query.toLowerCase())) suggestions.add(t); });
             }
         });
-    });
-    
+    }
+
+    // Fallback to lightweight DOM scan if fuse not available
+    if (!suggestions.size) {
+        const allMezmurs = Array.from(document.querySelectorAll('.mezmur-card-container'));
+        allMezmurs.forEach(card => {
+            const title = card.querySelector('.card-title')?.textContent || '';
+            const tags = Array.from(card.querySelectorAll('.tag-pill')).map(tag => tag.textContent);
+            const titleWords = title.toLowerCase().split(' ').filter(word => word.includes(query.toLowerCase()) && word.length > 2);
+            titleWords.forEach(word => suggestions.add(word));
+            tags.forEach(tag => { if (tag.toLowerCase().includes(query.toLowerCase())) suggestions.add(tag); });
+        });
+    }
+
     const suggestionArray = Array.from(suggestions).slice(0, 6);
-    
+
     if (suggestionArray.length > 0) {
         container.innerHTML = suggestionArray.map(suggestion => `
             <div class="suggestion-item px-3 py-2 cursor-pointer" onclick="selectSuggestion('${suggestion}')">
@@ -257,27 +573,56 @@ function selectSuggestion(suggestion) {
 }
 
 // Filter Functionality
-function filterMezmurs() {
-    const searchInput = document.getElementById('searchInput');
-    // Gracefully handle cases where search input may not exist
-    const searchTerm = searchInput ? searchInput.value.trim().toLowerCase() : '';
+async function filterMezmurs() {
+    // Use centralized state
+    const searchTerm = (filterState.q || '').trim().toLowerCase();
     
     // Get selected tags from desktop, mobile dropdown, and mobile swipe checkboxes
-    const desktopTags = Array.from(document.querySelectorAll('.tag-list input:checked'))
-        .map(cb => cb.value.trim().toLowerCase());
-    const mobileTags = Array.from(document.querySelectorAll('.mobile-tag-checkbox:checked'))
-        .map(cb => cb.value.trim().toLowerCase());
-    const swipeTags = Array.from(document.querySelectorAll('.mobile-tag-checkbox-swipe:checked'))
-        .map(cb => cb.value.trim().toLowerCase());
+    // We collect original-case values for the server API, but use lower-case for local matching
+    const desktopTags = Array.isArray(filterState.tags) ? filterState.tags.slice() : [];
+    // mobile and swipe inputs are kept in sync via applyStateToUI — their current state mirrors filterState
+    const mobileTags = [];
+    const swipeTags = [];
     
     // Combine all sets of selected tags
     const selectedTags = [...new Set([...desktopTags, ...mobileTags, ...swipeTags])];
+    // For local matching, use lowercase
+    const selectedTagsLower = selectedTags.map(t => t.toLowerCase());
     
-    // Check which operator is selected (desktop or mobile)
-    const desktopOperator = document.querySelector('input[name="operator"]:checked');
-    const mobileOperator = document.querySelector('input[name="mobileOperator"]:checked');
-    const operator = (mobileOperator && mobileOperator.id) || (desktopOperator && desktopOperator.id) || 'operatorOr';
+    // Operator is stored in filterState.op ('and' or 'or')
+    const operator = filterState.op === 'and' ? 'operatorAnd' : 'operatorOr';
 
+    // Prefer server-side filtered results (scalable). If API fails, fall back to local DOM filtering.
+    try {
+        const params = new URLSearchParams();
+        if (filterState.q) params.set('q', filterState.q);
+        if (selectedTags.length) params.set('tags', selectedTags.join(','));
+        params.set('op', filterState.op === 'and' ? 'and' : 'or');
+        // Request a large perPage so we get all matching IDs in one call for existing DOM
+        params.set('perPage', '10000');
+
+        const res = await fetch(`/api/mezmurs?${params.toString()}`);
+        if (res.ok) {
+            const data = await res.json();
+            if (data && Array.isArray(data.items)) {
+                const allowed = new Set(data.items.map(i => String(i.m_id)));
+                document.querySelectorAll('.mezmur-card-container').forEach(card => {
+                    const mid = card.getAttribute('data-m-id');
+                    card.classList.toggle('filtered-out', !allowed.has(mid));
+                });
+                // Update URL and chips
+                // make url match filterState and render chips
+                pushFiltersToURL();
+                renderActiveFilterChips();
+                return; // done
+            }
+        }
+    } catch (err) {
+        // network or API error -> fallback to local filtering
+        console.warn('Server-side filter failed, falling back to client-side filter', err);
+    }
+
+    // Local DOM-based filter fallback
     document.querySelectorAll('.mezmur-card-container').forEach(card => {
         const title = card.querySelector('.card-title').textContent.toLowerCase();
         const tags = Array.from(card.querySelectorAll('.tag-pill'))
@@ -286,13 +631,255 @@ function filterMezmurs() {
 
         const matchesSearch = title.includes(searchTerm) || 
                             (searchTerm.length > 2 && lyrics.includes(searchTerm));
-        const matchesTags = selectedTags.length === 0 || 
-            (operator.includes('And') ? 
-                selectedTags.every(tag => tags.includes(tag)) : 
-                selectedTags.some(tag => tags.includes(tag)));
+        const matchesTags = selectedTagsLower.length === 0 || 
+            (filterState.op === 'and' ? 
+                selectedTagsLower.every(tag => tags.includes(tag)) : 
+                selectedTagsLower.some(tag => tags.includes(tag)));
 
         card.classList.toggle('filtered-out', !(matchesSearch && matchesTags));
     });
+
+    // Update URL and active filter chips
+    pushFiltersToURL();
+    renderActiveFilterChips();
+    applyHighlights(filterState.q);
+}
+
+// Render active filter chips UI and wire chip removal
+function renderActiveFilterChips() {
+    const container = document.getElementById('activeFiltersContainer');
+    if (!container) return;
+
+    // Use centralized store for chips
+    const q = filterState.q || '';
+    const tags = Array.isArray(filterState.tags) ? filterState.tags : [];
+    const operator = filterState.op === 'and' ? 'AND' : 'OR';
+
+    const chips = [];
+    if (q) chips.push({ type: 'q', label: `"${q}"`, value: q });
+    tags.forEach(t => chips.push({ type: 'tag', label: t, value: t }));
+
+    // build html
+    container.innerHTML = '';
+    if (chips.length === 0) {
+        container.classList.add('d-none');
+        return;
+    }
+
+    container.classList.remove('d-none');
+
+    const info = document.createElement('div');
+    info.className = 'mb-2 d-flex align-items-center gap-2 flex-wrap';
+
+    // Operator indicator
+    const opBadge = document.createElement('span');
+    opBadge.className = 'badge bg-secondary small';
+    opBadge.textContent = `Mode: ${operator}`;
+    info.appendChild(opBadge);
+
+    chips.forEach(chip => {
+        const el = document.createElement('span');
+        el.className = 'badge bg-primary text-white me-1 mb-1 active-filter-chip';
+        el.style.cursor = 'pointer';
+        el.setAttribute('data-filter-type', chip.type);
+        el.setAttribute('data-filter-value', chip.value);
+        el.innerHTML = `${chip.label} <i class="bi bi-x ms-1"></i>`;
+        el.setAttribute('role','button');
+        el.setAttribute('aria-label', `Remove filter ${chip.label}`);
+        el.setAttribute('tabindex','0');
+        el.addEventListener('click', () => removeFilterChip(chip.type, chip.value));
+        el.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' || e.key === ' ' || e.key === 'Delete' || e.key === 'Backspace') {
+                e.preventDefault();
+                removeFilterChip(chip.type, chip.value);
+            }
+        });
+        info.appendChild(el);
+    });
+
+    const clearBtn = document.createElement('button');
+    clearBtn.className = 'btn btn-sm btn-outline-secondary ms-auto';
+    clearBtn.textContent = 'Clear all filters';
+    clearBtn.addEventListener('click', () => clearAllFilters());
+    info.appendChild(clearBtn);
+
+    container.appendChild(info);
+}
+
+// Update tag UI showing counts and disabling tags with zero results
+function updateTagCounts(facets) {
+    if (!Array.isArray(facets)) return;
+
+    // facets: [{name, count}]
+    // Update desktop list
+    document.querySelectorAll('.tag-list .form-check').forEach(el => {
+        const input = el.querySelector('input.form-check-input');
+        const label = el.querySelector('label.form-check-label');
+        if (!input || !label) return;
+        const tag = input.value;
+        const f = facets.find(x => x.name === tag) || { count: 0 };
+
+        // add or update a small count badge
+        let badge = el.querySelector('.tag-count-badge');
+        if (!badge) {
+            badge = document.createElement('span');
+            badge.className = 'tag-count-badge ms-2 text-muted small';
+            label.appendChild(badge);
+        }
+        badge.textContent = `(${f.count})`;
+
+        // disable if count is zero and tag not currently selected
+        if (f.count === 0 && !input.checked) {
+            input.disabled = true;
+            el.classList.add('disabled');
+            input.setAttribute('aria-disabled', 'true');
+        } else {
+            input.disabled = false;
+            el.classList.remove('disabled');
+            input.removeAttribute('aria-disabled');
+        }
+    });
+
+    // mobile dropdown
+    document.querySelectorAll('.mobile-tags-dropdown .form-check').forEach(el => {
+        const input = el.querySelector('input.mobile-tag-checkbox');
+        const label = el.querySelector('label.form-check-label');
+        if (!input || !label) return;
+        const tag = input.value;
+        const f = facets.find(x => x.name === tag) || { count: 0 };
+        let badge = label.querySelector('.tag-count-badge');
+        if (!badge) {
+            badge = document.createElement('span');
+            badge.className = 'tag-count-badge ms-2 text-muted small';
+            label.appendChild(badge);
+        }
+        badge.textContent = `(${f.count})`;
+
+        if (f.count === 0 && !input.checked) {
+            input.disabled = true;
+            el.classList.add('disabled');
+            input.setAttribute('aria-disabled', 'true');
+        } else {
+            input.disabled = false;
+            el.classList.remove('disabled');
+            input.removeAttribute('aria-disabled');
+        }
+    });
+
+    // mobile swipe list
+    document.querySelectorAll('.tag-list-mobile .form-check').forEach(el => {
+        const input = el.querySelector('input.mobile-tag-checkbox-swipe');
+        const label = el.querySelector('label.form-check-label');
+        if (!input || !label) return;
+        const tag = input.value;
+        const f = facets.find(x => x.name === tag) || { count: 0 };
+        let badge = label.querySelector('.tag-count-badge');
+        if (!badge) {
+            badge = document.createElement('span');
+            badge.className = 'tag-count-badge ms-2 text-muted small';
+            label.appendChild(badge);
+        }
+        badge.textContent = `(${f.count})`;
+
+        if (f.count === 0 && !input.checked) {
+            input.disabled = true;
+            el.classList.add('disabled');
+            input.setAttribute('aria-disabled', 'true');
+        } else {
+            input.disabled = false;
+            el.classList.remove('disabled');
+            input.removeAttribute('aria-disabled');
+        }
+    });
+}
+
+// Compute tag counts locally (fallback) by simulating current search and operator
+function computeLocalTagCounts() {
+    // gather all tags
+    const allTagInputs = Array.from(document.querySelectorAll('.tag-list .form-check-input'));
+    if (!allTagInputs.length) return;
+
+    // base matching sets: current search (filterState.q)
+    const q = (filterState.q || '').toLowerCase();
+
+    // precompute for each card the set of tags it has and whether it matches search
+    const cards = Array.from(document.querySelectorAll('.mezmur-card-container'));
+    const cardData = cards.map(card => {
+        const id = card.getAttribute('data-m-id');
+        const title = card.querySelector('.card-title')?.textContent?.toLowerCase() || '';
+        const lyrics = card.dataset.lyrics?.toLowerCase() || '';
+        const tags = Array.from(card.querySelectorAll('.tag-pill')).map(t => t.textContent.trim());
+        const matchesSearch = (!q) || title.includes(q) || (q.length > 2 && lyrics.includes(q));
+        return { id, tags, matchesSearch };
+    });
+
+    allTagInputs.forEach(input => {
+        const tag = input.value;
+        // effective tags = filterState.tags + [tag] (unique)
+        const effectiveTags = [...new Set([...(filterState.tags || []), tag])];
+        let count = 0;
+
+        cardData.forEach(cd => {
+            if (!cd.matchesSearch) return;
+
+            if (filterState.op === 'and') {
+                // card must have all effectiveTags
+                const hasAll = effectiveTags.every(t => cd.tags.map(x => x.toLowerCase()).includes(t.toLowerCase()));
+                if (hasAll) count++;
+            } else {
+                // or: card must have any of effectiveTags
+                if (effectiveTags.some(t => cd.tags.map(x => x.toLowerCase()).includes(t.toLowerCase()))) count++;
+            }
+        });
+
+        // update UI element for this tag similar to updateTagCounts
+        const el = document.querySelector(`.tag-list .form-check input[value="${CSS.escape(tag)}"]`)?.closest('.form-check');
+        if (el) {
+            let badge = el.querySelector('.tag-count-badge');
+            if (!badge) {
+                const label = el.querySelector('label.form-check-label');
+                badge = document.createElement('span');
+                badge.className = 'tag-count-badge ms-2 text-muted small';
+                label.appendChild(badge);
+            }
+            badge.textContent = `(${count})`;
+
+            if (count === 0 && !(filterState.tags || []).includes(tag)) {
+                const inputEl = el.querySelector('.form-check-input');
+                inputEl.disabled = true;
+                el.classList.add('disabled');
+                inputEl.setAttribute('aria-disabled', 'true');
+            } else {
+                const inputEl = el.querySelector('.form-check-input');
+                inputEl.disabled = false;
+                el.classList.remove('disabled');
+                inputEl.removeAttribute('aria-disabled');
+            }
+        }
+    });
+}
+
+function removeFilterChip(type, value) {
+    if (type === 'q') {
+        filterState.q = '';
+    } else if (type === 'tag') {
+        filterState.tags = (filterState.tags || []).filter(t => t !== value);
+    }
+
+    // apply state to UI and run filter
+    applyStateToUI();
+    filterMezmurs();
+}
+
+function clearAllFilters() {
+    // reset central state
+    filterState.q = '';
+    filterState.tags = [];
+    filterState.op = 'or';
+    filterState.page = 1;
+
+    applyStateToUI();
+    filterMezmurs();
 }
 
 // Mobile Tag Dropdown Functionality
@@ -809,6 +1396,114 @@ function refreshPlaylistList() {
     }
     
     showToast('ዝማሬታት እተሓዱ እዮም...', 'info');
+}
+
+// Load and render saved filters into the modal
+async function loadSavedFiltersIntoModal() {
+    const container = document.getElementById('savedFiltersListBody');
+    if (!container) return;
+
+    container.innerHTML = document.getElementById('savedFiltersLoading')?.outerHTML || '<p>Loading...</p>';
+
+    try {
+        const res = await fetch('/api/saved_filters');
+        if (!res.ok) throw new Error('Failed to load');
+
+        const items = await res.json();
+        if (!Array.isArray(items) || items.length === 0) {
+            container.innerHTML = `
+                <div class="text-center py-4">
+                    <i class="bi bi-bookmark-x display-4 text-muted"></i>
+                    <p class="mt-3 text-muted">No saved filters yet.</p>
+                </div>
+            `;
+            return;
+        }
+
+        container.innerHTML = items.map(s => `
+            <div class="card mb-2">
+                <div class="card-body d-flex align-items-start justify-content-between gap-3">
+                    <div class="flex-grow-1">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <h6 class="mb-1">${escapeHtml(s.name)}</h6>
+                            <small class="text-muted">${s.created_at ? new Date(s.created_at).toLocaleString() : ''}</small>
+                        </div>
+                        <div class="small text-muted mb-2">${buildFilterSummary(s.query)}</div>
+                        <div class="d-flex gap-2">
+                            <button data-apply-id="${s.id}" aria-label="Apply saved filter ${escapeHtml(s.name)}" class="btn btn-sm btn-outline-primary apply-saved-filter">Apply</button>
+                            <button data-delete-id="${s.id}" aria-label="Delete saved filter ${escapeHtml(s.name)}" class="btn btn-sm btn-outline-danger delete-saved-filter">Delete</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `).join('');
+
+        // attach handlers
+        container.querySelectorAll('.apply-saved-filter').forEach(btn => {
+            btn.addEventListener('click', async (e) => {
+                const id = btn.getAttribute('data-apply-id');
+                const item = items.find(it => String(it.id) === String(id));
+                if (!item) return showToast('Saved filter not found', 'error');
+
+                // apply state
+                const payload = (typeof item.query === 'string') ? JSON.parse(item.query) : item.query || {};
+                filterState.q = payload.q || '';
+                filterState.tags = payload.tags || [];
+                filterState.op = payload.op || 'or';
+
+                applyStateToUI();
+                pushFiltersToURL();
+                filterMezmurs();
+
+                // close modal
+                const modal = bootstrap.Modal.getInstance(document.getElementById('savedFiltersListModal'));
+                if (modal) modal.hide();
+            });
+        });
+
+        container.querySelectorAll('.delete-saved-filter').forEach(btn => {
+            btn.addEventListener('click', async (e) => {
+                const id = btn.getAttribute('data-delete-id');
+                if (!confirm('Delete this saved filter?')) return;
+                try {
+                    const res = await fetch(`/api/saved_filters/${id}`, { method: 'DELETE' });
+                    if (!res.ok) throw new Error('Failed');
+                    showToast('Saved filter deleted', 'success');
+                    loadSavedFiltersIntoModal();
+                } catch (err) {
+                    console.error('Delete failed', err);
+                    showToast('Failed to delete filter', 'error');
+                }
+            });
+        });
+
+    } catch (err) {
+        console.error('Failed to load saved filters', err);
+        container.innerHTML = `
+            <div class="text-center py-4">
+                <i class="bi bi-exclamation-triangle display-4 text-warning"></i>
+                <p class="mt-3 text-muted">Could not load saved filters.</p>
+            </div>
+        `;
+    }
+}
+
+function escapeHtml(str) {
+    if (!str) return '';
+    return str.replace(/[&<>'"]/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+}
+
+function buildFilterSummary(qobj) {
+    try {
+        const obj = (typeof qobj === 'string') ? JSON.parse(qobj) : (qobj || {});
+        const parts = [];
+        if (obj.q) parts.push(`Search: "${escapeHtml(obj.q)}"`);
+        if (obj.tags && obj.tags.length) parts.push(`Tags: ${escapeHtml(obj.tags.join(', '))}`);
+        if (obj.op) parts.push(`Mode: ${obj.op.toUpperCase()}`);
+        return parts.join(' • ');
+    } catch (e) {
+        return '';
+    }
 }
 
 function showPopularTags() {

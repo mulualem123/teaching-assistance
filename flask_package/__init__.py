@@ -16,13 +16,14 @@ from .extractpp import extract  #Orginal
 from . import googletransfun    #Orginal
 from . import changealphabet    #Orginal
 from .forms import LoginForm, PlaylistForm    #Orginal
-from .models import db as account_db, User, Role, roles_users, Playlist, PlaylistSong
+from .models import db as account_db, User, Role, roles_users, Playlist, PlaylistSong, SavedFilter
 from flask_security import Security, SQLAlchemyUserDatastore, UserMixin, RoleMixin, roles_required
 from flask_migrate import Migrate  # Import Migrate here
 from werkzeug.security import generate_password_hash
 from werkzeug.utils import secure_filename
 import click
 from flask import jsonify
+import json
 
 # Import the extended registration form
 from .forms import ExtendedRegisterForm
@@ -174,6 +175,17 @@ def reset_password_command(email):
         except Exception as e:
             account_db.session.rollback()
             click.echo(f"Error resetting password: {e}")
+
+
+    # Template helper to check for endpoint existence to avoid url_for build errors
+    @app.context_processor
+    def utility_processor():
+        def endpoint_exists(name):
+            try:
+                return name in app.url_map._rules_by_endpoint
+            except Exception:
+                return False
+        return dict(endpoint_exists=endpoint_exists)
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
@@ -1214,6 +1226,272 @@ def get_tags():
     except Exception as e:
         app.logger.error(f"Error fetching tags: {str(e)}")
         return jsonify({'error': 'Failed to fetch tags'}), 500
+
+
+    @app.route('/api/saved_filters', methods=['GET'])
+    @login_required
+    def get_saved_filters():
+        try:
+            saved = SavedFilter.query.filter_by(user_id=current_user.id).order_by(SavedFilter.created_at.desc()).all()
+            result = []
+            for s in saved:
+                try:
+                    payload = json.loads(s.query)
+                except Exception:
+                    payload = {'q': '', 'tags': [], 'op': 'or'}
+
+                result.append({
+                    'id': s.id,
+                    'name': s.name,
+                    'query': payload,
+                    'created_at': s.created_at.isoformat() if s.created_at else None
+                })
+
+            return jsonify(result)
+        except Exception as e:
+            app.logger.exception(f"Error in get_saved_filters: {e}")
+            return jsonify({'error': 'Failed to load saved filters'}), 500
+
+
+    @app.route('/profile')
+    @login_required
+    def profile():
+        """User profile page - lets user manage saved filters"""
+        return render_template('profile.html')
+
+
+    @app.route('/api/saved_filters', methods=['POST'])
+    @login_required
+    def create_saved_filter():
+        try:
+            data = rq.get_json() or {}
+            name = data.get('name', '').strip()
+            if not name:
+                return jsonify({'error': 'Filter name is required'}), 400
+
+            q = data.get('q', '')
+            tags = data.get('tags', [])
+            op = data.get('op', 'or')
+
+            payload = json.dumps({'q': q, 'tags': tags, 'op': op})
+
+            # allow public flag optionally
+            is_public = bool(data.get('is_public', False))
+            share_token = None
+            if is_public:
+                # create a small UUID-like token
+                import secrets
+                share_token = secrets.token_urlsafe(16)
+
+            sf = SavedFilter(user_id=current_user.id, name=name, query=payload, is_public=is_public, share_token=share_token)
+            account_db.session.add(sf)
+            account_db.session.commit()
+
+            return jsonify({'id': sf.id, 'name': sf.name, 'query': json.loads(sf.query)}), 201
+        except Exception as e:
+            app.logger.exception(f"Error creating saved filter: {e}")
+            return jsonify({'error': 'Failed to save filter'}), 500
+
+
+    @app.route('/api/saved_filters/<int:filter_id>', methods=['DELETE'])
+    @login_required
+    def delete_saved_filter(filter_id):
+        try:
+            sf = SavedFilter.query.get(filter_id)
+            if not sf:
+                return jsonify({'error': 'Not found'}), 404
+            if sf.user_id != current_user.id:
+                return jsonify({'error': 'Forbidden'}), 403
+
+            account_db.session.delete(sf)
+            account_db.session.commit()
+            return jsonify({'status': 'deleted'})
+        except Exception as e:
+            app.logger.exception(f"Error deleting saved filter: {e}")
+            return jsonify({'error': 'Failed to delete filter'}), 500
+
+
+    @app.route('/api/saved_filters/<int:filter_id>', methods=['PUT'])
+    @login_required
+    def update_saved_filter(filter_id):
+        try:
+            sf = SavedFilter.query.get(filter_id)
+            if not sf:
+                return jsonify({'error': 'Not found'}), 404
+            if sf.user_id != current_user.id:
+                return jsonify({'error': 'Forbidden'}), 403
+
+            data = rq.get_json() or {}
+            # allow toggling public
+            if 'is_public' in data:
+                is_public = bool(data.get('is_public'))
+                sf.is_public = is_public
+                if is_public and not sf.share_token:
+                    import secrets
+                    sf.share_token = secrets.token_urlsafe(16)
+                if not is_public:
+                    sf.share_token = None
+
+            account_db.session.commit()
+            return jsonify({'id': sf.id, 'is_public': sf.is_public, 'share_token': sf.share_token})
+        except Exception as e:
+            app.logger.exception(f"Error updating saved filter: {e}")
+            return jsonify({'error': 'Failed to update saved filter'}), 500
+
+
+    @app.route('/api/public_filters', methods=['GET'])
+    def list_public_filters():
+        try:
+            public = SavedFilter.query.filter_by(is_public=True).order_by(SavedFilter.created_at.desc()).all()
+            return jsonify([{
+                'id': s.id,
+                'name': s.name,
+                'query': json.loads(s.query),
+                'share_token': s.share_token,
+                'created_at': s.created_at.isoformat() if s.created_at else None,
+                'user_id': s.user_id
+            } for s in public])
+        except Exception as e:
+            app.logger.exception(f"Error listing public filters: {e}")
+            return jsonify({'error':'failed'}), 500
+
+
+    @app.route('/api/saved_filters/shared/<token>', methods=['GET'])
+    def get_shared_filter(token):
+        try:
+            sf = SavedFilter.query.filter_by(share_token=token, is_public=True).first()
+            if not sf:
+                return jsonify({'error': 'Not found'}), 404
+            return jsonify({'id': sf.id, 'name': sf.name, 'query': json.loads(sf.query), 'user_id': sf.user_id})
+        except Exception as e:
+            app.logger.exception(f"Error retrieving shared filter: {e}")
+            return jsonify({'error':'failed'}), 500
+
+
+@app.route('/api/mezmurs')
+def api_mezmurs():
+    """API: GET /api/mezmurs?q=&tags=a,b&op=and&page=1&perPage=24
+    Returns JSON: { total, page, perPage, items: [{m_id,title,azmach,engTrans,dir,created}], facets: {tags:[{name,count}]}}
+    """
+    try:
+        q = rq.args.get('q', '').strip()
+        tags_param = rq.args.get('tags', '').strip()
+        tags = [t.strip() for t in tags_param.split(',') if t.strip()]
+        op = rq.args.get('op', 'or').lower()
+        page = max(int(rq.args.get('page', 1)), 1)
+        per_page = max(int(rq.args.get('perPage', 24)), 1)
+
+        conn = db.get_db()
+        cursor = conn.cursor()
+
+        where_clauses = []
+        params = []
+
+        if q:
+            # Search title, azmach, azmachen, engTrans
+            like = f"%{q}%"
+            where_clauses.append("(title LIKE ? OR azmach LIKE ? OR azmachen LIKE ? OR engTrans LIKE ?)")
+            params.extend([like, like, like, like])
+
+        if tags:
+            if op == 'and':
+                # require each tag exists for a mezmur
+                for t in tags:
+                    where_clauses.append("EXISTS (SELECT 1 FROM mezTags mt WHERE mt.m_id = mezmur.m_id AND mt.tag = ?)")
+                    params.append(t)
+            else:
+                # OR semantics - mezmur appears if any of the tags match
+                placeholders = ','.join(['?'] * len(tags))
+                where_clauses.append(f"mezmur.m_id IN (SELECT m_id FROM mezTags mt WHERE mt.tag IN ({placeholders}))")
+                params.extend(tags)
+
+        where_sql = ('WHERE ' + ' AND '.join(where_clauses)) if where_clauses else ''
+
+        # total count
+        count_sql = f"SELECT COUNT(*) as total FROM mezmur {where_sql}"
+        cursor.execute(count_sql, params)
+        total = cursor.fetchone()[0] or 0
+
+        # items - basic columns
+        offset = (page - 1) * per_page
+        items_sql = f"SELECT m_id, title, titleen, azmach, azmachen, engTrans, dir, audio_file, created FROM mezmur {where_sql} ORDER BY m_id DESC LIMIT ? OFFSET ?"
+        items_params = params + [per_page, offset]
+        cursor.execute(items_sql, items_params)
+        rows = cursor.fetchall()
+
+        items = []
+        for r in rows:
+            items.append({
+                'm_id': r['m_id'],
+                'title': r['title'],
+                'titleen': r['titleen'],
+                'azmach': r['azmach'],
+                'azmachen': r['azmachen'],
+                'engTrans': r['engTrans'],
+                'dir': r['dir'],
+                'audio_file': r['audio_file'],
+                'created': r['created']
+            })
+
+        # Facet counts -> compute counts per tag that reflect the current search q
+        # For each tag t, compute number of mezmur that would match when t is included along with the current q
+        tag_list = [r['tag'] for r in conn.execute('SELECT tag FROM tagList').fetchall()]
+
+        facets = []
+        # Build q-only where clause to use as base
+        base_where = ""
+        base_params = []
+        if q:
+            like = f"%{q}%"
+            base_where = "WHERE (title LIKE ? OR azmach LIKE ? OR azmachen LIKE ? OR engTrans LIKE ? )"
+            base_params = [like, like, like, like]
+
+        # If there are no selected tags, we can compute simple counts by joining base query with mezTags
+        for t in tag_list:
+            try:
+                # effective tags set = current tags + candidate t (ensure unique)
+                effective_tags = list(dict.fromkeys(tags + [t]))
+
+                if effective_tags:
+                    # For OR: any of effective_tags
+                    if op == 'or':
+                        placeholders = ','.join(['?'] * len(effective_tags))
+                        facet_sql = f"SELECT COUNT(DISTINCT mezmur.m_id) as cnt FROM mezmur JOIN mezTags mt ON mt.m_id = mezmur.m_id {base_where} AND mezmur.m_id IN (SELECT m_id FROM mezTags WHERE tag IN ({placeholders}))"
+                        params_for_facet = base_params + effective_tags
+                    else:
+                        # AND: mezmur must have all effective_tags
+                        # Build EXISTS clauses for each tag
+                        exists_clauses = ' AND '.join(["EXISTS (SELECT 1 FROM mezTags mt2 WHERE mt2.m_id = mezmur.m_id AND mt2.tag = ?)" for _ in effective_tags])
+                        facet_sql = f"SELECT COUNT(*) as cnt FROM mezmur {base_where} AND {exists_clauses}"
+                        params_for_facet = base_params + effective_tags
+                else:
+                    # No tag filter -> count all matching base (q)
+                    facet_sql = f"SELECT COUNT(*) as cnt FROM mezmur {base_where}"
+                    params_for_facet = base_params
+
+                cursor.execute(facet_sql, params_for_facet)
+                cnt = cursor.fetchone()[0] or 0
+                facets.append({'name': t, 'count': cnt})
+            except Exception:
+                # On any failure just return 0 for safety
+                facets.append({'name': t, 'count': 0})
+
+        # sort facets by count desc to return useful ordering
+        facets.sort(key=lambda x: x['count'], reverse=True)
+
+        return jsonify({
+            'total': total,
+            'page': page,
+            'perPage': per_page,
+            'items': items,
+            'facets': {
+                'tags': facets
+            }
+        })
+
+    except Exception as e:
+        app.logger.exception(f"Error in /api/mezmurs: {e}")
+        return jsonify({'error': 'Failed to fetch mezmurs'}), 500
         
 # View a single playlist and its songs
 @app.route('/playlist/<int:playlist_id>')

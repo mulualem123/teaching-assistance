@@ -48,8 +48,20 @@ class User(UserMixin, db.Model):
     # Many-to-Many relationship with roles
     roles = db.relationship('Role', secondary=roles_users, backref=db.backref('users', lazy='dynamic'))
     playlists = db.relationship('Playlist', backref='user', lazy=True)
+    saved_filters = db.relationship('SavedFilter', backref='user', lazy=True)
     def set_password(self, password):
         self.password = generate_password_hash(password)
 
     def check_password(self, password):
         return check_password_hash(self.password, password)
+
+
+class SavedFilter(db.Model):
+    __tablename__ = 'saved_filters'
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    name = db.Column(db.String(255), nullable=False)
+    query = db.Column(db.Text, nullable=False)  # JSON encoded query (q, tags, op)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    is_public = db.Column(db.Boolean, default=False, nullable=False)
+    share_token = db.Column(db.String(64), unique=True, nullable=True)
