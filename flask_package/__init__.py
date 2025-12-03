@@ -24,6 +24,7 @@ from werkzeug.utils import secure_filename
 import click
 from flask import jsonify
 import json
+import secrets
 
 # Import the extended registration form
 from .forms import ExtendedRegisterForm
@@ -90,6 +91,32 @@ with app.app_context():
     db.init_db()  # Creates site.db for mezmur data if it doesn't exist
     account_db.create_all() # Creates users.db for accounts if it doesn't exist
     print("Tables created successfully!")
+    # Ensure saved_filters table has expected columns (migrate if necessary)
+    try:
+        users_db_path = os.path.join(app.instance_path, 'users.db')
+        if os.path.exists(users_db_path):
+            conn = sqlite3.connect(users_db_path)
+            cur = conn.cursor()
+            cur.execute("PRAGMA table_info(saved_filters)")
+            cols = [row[1] for row in cur.fetchall()]
+            # Add is_public column if missing
+            if 'is_public' not in cols:
+                try:
+                    cur.execute("ALTER TABLE saved_filters ADD COLUMN is_public INTEGER DEFAULT 0")
+                    print('Added is_public column to saved_filters')
+                except Exception as e:
+                    print('Failed to add is_public column:', e)
+            # Add share_token column if missing
+            if 'share_token' not in cols:
+                try:
+                    cur.execute("ALTER TABLE saved_filters ADD COLUMN share_token TEXT")
+                    print('Added share_token column to saved_filters')
+                except Exception as e:
+                    print('Failed to add share_token column:', e)
+            conn.commit()
+            conn.close()
+    except Exception as _err:
+        print('Saved filters migration check failed:', _err)
 
 # Import models after initializing account_db to avoid circular imports
 @login_manager.user_loader
@@ -356,7 +383,95 @@ def mezmur():
                             tags=db.get_taglist(),
                             form=form,
                             shared_playlists=shared_playlists
-                           )
+)
+
+
+# Saved Filters API (list, create)
+@app.route('/api/saved_filters', methods=['GET', 'POST'])
+def api_saved_filters():
+    # List saved filters for current user or create a new saved filter
+    if rq.method == 'GET':
+        if not current_user.is_authenticated:
+            return jsonify([]), 401
+        items = []
+        for sf in account_db.session.query(SavedFilter).filter_by(user_id=current_user.id).order_by(SavedFilter.created_at.desc()).all():
+            try:
+                query_obj = json.loads(sf.query) if isinstance(sf.query, str) else sf.query
+            except Exception:
+                query_obj = {}
+            items.append({
+                'id': sf.id,
+                'name': sf.name,
+                'created_at': sf.created_at.isoformat() if sf.created_at else None,
+                'query': query_obj,
+                'is_public': bool(sf.is_public),
+                'share_token': sf.share_token
+            })
+        return jsonify(items)
+
+    # POST -> create
+    if rq.method == 'POST':
+        if not current_user.is_authenticated:
+            return jsonify({'message': 'Authentication required'}), 401
+        data = rq.get_json() or {}
+        name = (data.get('name') or '').strip()
+        if not name:
+            return jsonify({'message': 'Name required'}), 400
+        q = data.get('q', '')
+        tags = data.get('tags', []) or []
+        op = data.get('op', 'or')
+        is_public = bool(data.get('is_public', False))
+
+        # persist
+        try:
+            sf = SavedFilter(user_id=current_user.id, name=name, query=json.dumps({'q': q, 'tags': tags, 'op': op}), is_public=is_public)
+            if is_public and not sf.share_token:
+                sf.share_token = secrets.token_urlsafe(16)
+            account_db.session.add(sf)
+            account_db.session.commit()
+            return jsonify({'id': sf.id, 'name': sf.name, 'created_at': sf.created_at.isoformat(), 'is_public': sf.is_public, 'share_token': sf.share_token}), 201
+        except Exception as e:
+            account_db.session.rollback()
+            return jsonify({'message': 'Failed to save', 'error': str(e)}), 500
+
+
+# Delete or update a saved filter
+@app.route('/api/saved_filters/<int:sf_id>', methods=['DELETE', 'PUT'])
+def api_saved_filter_item(sf_id):
+    sf = account_db.session.get(SavedFilter, sf_id)
+    if not sf:
+        return jsonify({'message': 'Not found'}), 404
+
+    # Ensure ownership
+    if not current_user.is_authenticated or (sf.user_id != current_user.id and 'admin' not in [r.name for r in current_user.roles]):
+        return jsonify({'message': 'Forbidden'}), 403
+
+    if rq.method == 'DELETE':
+        try:
+            account_db.session.delete(sf)
+            account_db.session.commit()
+            return jsonify({'message': 'Deleted'}), 200
+        except Exception as e:
+            account_db.session.rollback()
+            return jsonify({'message': 'Failed to delete', 'error': str(e)}), 500
+
+    # PUT -> update is_public or name
+    if rq.method == 'PUT':
+        data = rq.get_json() or {}
+        if 'is_public' in data:
+            sf.is_public = bool(data.get('is_public'))
+            if sf.is_public and not sf.share_token:
+                sf.share_token = secrets.token_urlsafe(16)
+        if 'name' in data:
+            sf.name = (data.get('name') or sf.name).strip()
+        try:
+            account_db.session.add(sf)
+            account_db.session.commit()
+            return jsonify({'message': 'Updated'}), 200
+        except Exception as e:
+            account_db.session.rollback()
+            return jsonify({'message': 'Failed to update', 'error': str(e)}), 500
+
 
 @app.route("/sundayclass")
 def sundayclass():

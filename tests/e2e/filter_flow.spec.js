@@ -21,5 +21,13 @@ test('filter flow updates URL and applies filters', async ({ page }) => {
     await page.waitForTimeout(300);
     // check that the active filters container has a chip with 'love' or tag
     await expect(page.locator('#activeFiltersContainer')).toBeVisible();
+    
+    // Save button should be visible in the toolbar
+    const saveBtn = page.locator('#saveFilterBtn')
+    await expect(saveBtn).toBeVisible()
+    
+    // When unauthenticated clicking Save should redirect to login with next param
+    await saveBtn.click()
+    await expect(page).toHaveURL(/\/login\?next=/)
   }
 });

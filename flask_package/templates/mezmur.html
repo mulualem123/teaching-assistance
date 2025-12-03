@@ -38,7 +38,7 @@
             <div class="mb-3" id="filterActionsBar">
                 <div class="d-flex gap-2 align-items-center">
                     <!-- Save button visible to all; JS redirects to login if unauthenticated -->
-                    <button id="saveFilterBtn" class="btn btn-sm btn-outline-primary" aria-label="Save current filter" type="button"
+                    <button id="saveFilterBtn" class="btn btn-sm btn-outline-primary d-none" aria-label="Save current filter" type="button" aria-hidden="true"
                         {% if current_user.is_authenticated %}
                             data-bs-toggle="modal" data-bs-target="#saveFilterModal" data-auth="1"
                         {% else %}
@@ -56,7 +56,7 @@
                         <i class="bi bi-journal-bookmark me-1" aria-hidden="true"></i> My saved filters
                     </button>
 
-                    <button id="shareFilterBtn" class="btn btn-sm btn-outline-secondary" aria-label="Share current filter" type="button">
+                    <button id="shareFilterBtn" class="btn btn-sm btn-outline-secondary d-none" aria-label="Share current filter" type="button" aria-hidden="true">
                         <i class="bi bi-share me-1" aria-hidden="true"></i> Share
                     </button>
 

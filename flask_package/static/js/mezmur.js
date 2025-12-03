@@ -114,15 +114,6 @@ function showToast(message, type = 'info', duration = 4000) {
         background: ${getToastColor(type)};
         color: white;
         padding: 12px 16px;
-                    document.querySelectorAll('.mezmur-card-container').forEach(card => {
-                        const mid = card.getAttribute('data-m-id');
-                        card.classList.toggle('filtered-out', !allowed.has(mid));
-                    });
-                    // Update URL and chips
-                    pushFiltersToURL();
-                    renderActiveFilterChips();
-                    applyHighlights(filterState.q);
-                    return; // done
         font-size: 0.9rem;
         line-height: 1.4;
     `;
@@ -301,12 +292,26 @@ document.addEventListener('DOMContentLoaded', function() {
                 const res = await fetch('/api/saved_filters', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
+                    credentials: 'same-origin',
                     body: JSON.stringify(payload)
                 });
 
                 if (!res.ok) {
-                    const err = await res.json().catch(() => ({}));
-                    throw new Error(err.message || 'Save failed');
+                    // try to extract server message to show to user
+                    let err = {};
+                    try { err = await res.json(); } catch (e) { /* ignore */ }
+                    const msg = err && err.message ? err.message : `Save failed (${res.status})`;
+                    if (res.status === 401) {
+                        showToast('Please log in to save filters', 'warning');
+                        // close modal if open
+                        const modal = bootstrap.Modal.getInstance(document.getElementById('saveFilterModal'));
+                        if (modal) modal.hide();
+                        // redirect to login preserving next
+                        const next = encodeURIComponent(location.pathname + location.search);
+                        window.location.href = `/login?next=${next}`;
+                        return;
+                    }
+                    throw new Error(msg);
                 }
 
                 showToast('Filters saved', 'success');
@@ -352,6 +357,7 @@ function readFiltersFromURL() {
     const tagsParam = params.get('tags') || '';
     const op = params.get('op') || 'or';
 
+    let tags;
     // update central state
     filterState.q = q;
     filterState.tags = tags;
@@ -361,7 +367,7 @@ function readFiltersFromURL() {
     applyStateToUI();
 
     // split tags
-    const tags = tagsParam ? tagsParam.split(',').map(t => t.trim()).filter(Boolean) : [];
+    tags = tagsParam ? tagsParam.split(',').map(t => t.trim()).filter(Boolean) : [];
 
     // apply tag selections across the three UIs
     // desktop
@@ -432,6 +438,8 @@ function updateStateFromUI() {
 
     // reset paging when filters change
     filterState.page = 1;
+    // Update action buttons visibility when state changes
+    try { updateActionButtonsVisibility(); } catch (e) { /* ignore in older contexts */ }
 }
 
 // Apply state to the UI elements (input, checkboxes, radios)
@@ -465,6 +473,8 @@ function applyStateToUI() {
 
     // update mobile count text
     updateMobileTagsDisplay();
+    // Update action buttons visibility when UI is updated from state
+    try { updateActionButtonsVisibility(); } catch (e) { /* ignore in older contexts */ }
 }
 
 // Handle back/forward navigation for URL-based filters
@@ -663,6 +673,7 @@ function renderActiveFilterChips() {
     container.innerHTML = '';
     if (chips.length === 0) {
         container.classList.add('d-none');
+        try { updateActionButtonsVisibility(); } catch (e) { /* ignore */ }
         return;
     }
 
@@ -704,6 +715,8 @@ function renderActiveFilterChips() {
     info.appendChild(clearBtn);
 
     container.appendChild(info);
+    // Ensure action buttons reflect the presence of filters/chips
+    try { updateActionButtonsVisibility(); } catch (e) { /* ignore */ }
 }
 
 // Update tag UI showing counts and disabling tags with zero results
@@ -2664,4 +2677,27 @@ function shareOnTelegram(mezmurId) {
     } else {
         showToast('Could not find content to share.', 'error');
     }
+}
+
+// Show/hide Save + Share action buttons based on whether any filters are active
+function updateActionButtonsVisibility() {
+    const saveBtn = document.getElementById('saveFilterBtn');
+    const shareBtn = document.getElementById('shareFilterBtn');
+
+    const hasQuery = !!(filterState.q && String(filterState.q).trim().length > 0);
+    const hasTags = Array.isArray(filterState.tags) && filterState.tags.length > 0;
+    const hasFilters = hasQuery || hasTags;
+
+    [saveBtn, shareBtn].forEach(btn => {
+        if (!btn) return;
+        if (hasFilters) {
+            btn.classList.remove('d-none');
+            btn.removeAttribute('aria-hidden');
+            btn.disabled = false;
+        } else {
+            btn.classList.add('d-none');
+            btn.setAttribute('aria-hidden', 'true');
+            btn.disabled = true;
+        }
+    });
 }
