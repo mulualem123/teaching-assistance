@@ -356,7 +356,7 @@ def index():
         return render_template("index.html",files = os.listdir(pp_parent_folder), rows= db.get_data(),imageslide1=imageslide1, imageslide2=imageslide2,imageslide3=imageslide3)
     
 # A route to display a form for the user to enter a paragraph in Geez alphabet
-@app.route("/mezmur")
+@app.route("/mezmur", methods=['GET', 'POST'])
 def mezmur():
     files = os.listdir(pp_parent_folder)
     form = PlaylistForm()
@@ -1312,7 +1312,7 @@ def debug_playlists():
         return jsonify({'error': str(e)}), 500
 
 # API endpoint to get available tags
-@app.route('/api/tags')
+@app.route('/api/tags', methods=['GET'])
 def get_tags():
     """Get all available tags with counts"""
     try:
@@ -1483,7 +1483,7 @@ def get_tags():
             return jsonify({'error':'failed'}), 500
 
 
-@app.route('/api/mezmurs')
+@app.route('/api/mezmurs', methods=['GET'])
 def api_mezmurs():
     """API: GET /api/mezmurs?q=&tags=a,b&op=and&page=1&perPage=24
     Returns JSON: { total, page, perPage, items: [{m_id,title,azmach,engTrans,dir,created}], facets: {tags:[{name,count}]}}

@@ -158,7 +158,7 @@ function getToastIcon(type) {
         'warning': 'bi-exclamation-triangle-fill',
         'info': 'bi-info-circle-fill'
     };
-    return icons[type] || icons.info;
+    return icons[type?.toLowerCase()] || icons.info;
 }
 
 // Masonry Initialization - Disabled for responsive Bootstrap grid
@@ -176,9 +176,10 @@ document.addEventListener('DOMContentLoaded', function() {
             updateStateFromUI();
             filterMezmurs();
         });
-    } else {
-        console.error('Search input not found.');
-    }
+    } 
+    // else {
+    //     console.error('Search input not found.');
+    // }
 
     // Add event listeners for both desktop and mobile tag checkboxes
     document.querySelectorAll('.tag-list .form-check-input').forEach(checkbox => {
