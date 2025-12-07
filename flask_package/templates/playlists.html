@@ -20,65 +20,85 @@
       {% if playlists %}
         <div class="row" id="playlists-container">
           {% for playlist in playlists %}
-            <div class="col-md-6 col-lg-4 mb-4" data-playlist-id="{{ playlist.id }}">
-              <div class="card playlist-card">
-                <div class="card-body">
+            <div class="col-md-6 col-lg-4 mb-4">
+              <div class="card playlist-card h-100" data-playlist-id="{{ playlist.id }}">
+                <div class="card-body d-flex flex-column">
                   <div class="d-flex justify-content-between align-items-start mb-3">
-                    <h5 class="card-title">
+                    <h5 class="card-title mb-0">
                       <a href="{{ url_for('view_playlist', playlist_id=playlist.id) }}" class="text-decoration-none">
                         {{ playlist.name }}
                       </a>
                     </h5>
-                    <div class="dropdown">
-                      <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" 
-                              data-bs-toggle="dropdown" aria-expanded="false">
-                        <i class="bi bi-three-dots"></i>
-                      </button>
-                      <ul class="dropdown-menu">
-                        <li>
-                          <a class="dropdown-item" href="{{ url_for('view_playlist', playlist_id=playlist.id) }}">
-                            <i class="bi bi-eye me-2"></i>View
-                          </a>
-                        </li>
-                        <li>
-                          <button class="dropdown-item share-playlist-btn" data-playlist-id="{{ playlist.id }}" 
-                                  data-shared="{{ playlist.shared if playlist.shared else false }}">
-                            <i class="bi bi-share me-2"></i>
-                            {{ 'Make Private' if playlist.shared else 'Share Publicly' }}
+
+                    <div class="d-flex align-items-start gap-2">
+                      {% if playlist.shared %}
+                        <span class="badge bg-success">
+                          <i class="bi bi-globe me-1"></i>Public
+                        </span>
+                      {% else %}
+                        <span class="badge bg-secondary">
+                          <i class="bi bi-lock me-1"></i>Private
+                        </span>
+                      {% endif %}
+
+                      {% set is_owner = current_user.is_authenticated and playlist.user_id == current_user.id %}
+                      {% set is_admin = current_user.is_authenticated and current_user.has_role('admin') %}
+                      {% if is_owner or is_admin %}
+                        <div class="dropdown">
+                          <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="bi bi-three-dots"></i>
                           </button>
-                        </li>
-                        {% if playlist.shared %}
-                        <li>
-                          <button class="dropdown-item copy-share-link-btn" data-playlist-id="{{ playlist.id }}">
-                            <i class="bi bi-link-45deg me-2"></i>Copy Share Link
-                          </button>
-                        </li>
-                        {% endif %}
-                        <li><hr class="dropdown-divider"></li>
-                        <li>
-                          <button class="dropdown-item text-danger delete-playlist-btn" data-playlist-id="{{ playlist.id }}">
-                            <i class="bi bi-trash me-2"></i>Delete
-                          </button>
-                        </li>
-                      </ul>
+                          <ul class="dropdown-menu dropdown-menu-end">
+                            <li>
+                              <a class="dropdown-item" href="{{ url_for('view_playlist', playlist_id=playlist.id) }}">
+                                <i class="bi bi-eye me-2"></i>View
+                              </a>
+                            </li>
+                            <li>
+                              <button class="dropdown-item share-playlist-btn" data-playlist-id="{{ playlist.id }}" data-shared="{{ playlist.shared if playlist.shared else false }}">
+                                <i class="bi bi-share me-2"></i>
+                                {{ 'Make Private' if playlist.shared else 'Share Publicly' }}
+                              </button>
+                            </li>
+                            {% if playlist.shared %}
+                            <li>
+                              <button class="dropdown-item copy-share-link-btn" data-playlist-id="{{ playlist.id }}">
+                                <i class="bi bi-link-45deg me-2"></i>Copy Share Link
+                              </button>
+                            </li>
+                            {% endif %}
+                            <li><hr class="dropdown-divider"></li>
+                            <li>
+                              <button class="dropdown-item text-danger delete-playlist-btn" data-playlist-id="{{ playlist.id }}">
+                                <i class="bi bi-trash me-2"></i>Delete
+                              </button>
+                            </li>
+                          </ul>
+                        </div>
+                      {% endif %}
                     </div>
                   </div>
-                  
-                  <p class="card-text text-muted">{{ playlist.description or 'No description' }}</p>
-                  
-                  <div class="d-flex justify-content-between align-items-center">
-                    <small class="text-muted">
-                      <i class="bi bi-music-note me-1"></i>{{ playlist.songs.count() }} songs
-                    </small>
-                    {% if playlist.shared %}
-                      <span class="badge bg-success">
-                        <i class="bi bi-globe me-1"></i>Public
-                      </span>
-                    {% else %}
-                      <span class="badge bg-secondary">
-                        <i class="bi bi-lock me-1"></i>Private
-                      </span>
-                    {% endif %}
+
+                  <p class="card-text text-muted flex-grow-1">{{ playlist.description or 'No description' }}</p>
+
+                  <div class="mt-auto">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                      <small class="text-muted">
+                        <i class="bi bi-music-note me-1"></i>{{ playlist.songs.count() }} songs
+                      </small>
+                      <small class="text-muted">
+                        <i class="bi bi-calendar-event me-1"></i>{{ playlist.created_at.strftime('%Y-%m-%d') if playlist.created_at else '' }}
+                      </small>
+                    </div>
+
+                    <div class="d-flex gap-2">
+                      <a href="{{ url_for('view_shared_playlist', playlist_id=playlist.id) }}?op=or" class="btn btn-primary btn-sm flex-fill">
+                        <i class="bi bi-play-fill me-1"></i>Play
+                      </a>
+                      <button class="btn btn-outline-secondary btn-sm copy-link-btn" type="button" data-playlist-id="{{ playlist.id }}" title="Copy Share Link">
+                        <i class="bi bi-share"></i>
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -178,6 +198,20 @@ document.addEventListener('DOMContentLoaded', function() {
                 showToast('Failed to copy link', 'error');
             });
         });
+    });
+
+    // Also handle generic copy link buttons added to cards (.copy-link-btn)
+    document.querySelectorAll('.copy-link-btn').forEach(button => {
+      button.addEventListener('click', function() {
+        const playlistId = this.dataset.playlistId;
+        const shareUrl = `${window.location.origin}/playlist/shared/${playlistId}`;
+        navigator.clipboard.writeText(shareUrl).then(() => {
+          showToast('Share link copied to clipboard!', 'success');
+        }).catch(err => {
+          console.error('Failed to copy link:', err);
+          showToast('Failed to copy link', 'error');
+        });
+      });
     });
 
     // Handle share confirmation
@@ -304,6 +338,33 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 });
+
+// Helper to load a playlist then start Play All
+async function playPlaylist(playlistId) {
+  try {
+    // Load playlist (this will open the modal and populate currentPlayer)
+    await loadPlaylist(playlistId);
+
+    // Small delay to ensure UI has updated and modal is shown
+    setTimeout(function() {
+      try {
+        // Start Play All flow (uses existing playAll())
+        if (typeof playAll === 'function') {
+          playAll();
+        } else {
+          console.warn('playAll() not available');
+          showToast('Unable to start playback.', 'warning');
+        }
+      } catch (err) {
+        console.error('Error starting playback:', err);
+        showToast('Playback failed to start.', 'error');
+      }
+    }, 300);
+  } catch (err) {
+    console.error('Failed to load playlist for play:', err);
+    showToast('Failed to open playlist.', 'error');
+  }
+}
 
 // Toast notification function
 function showToast(message, type = 'info') {
