@@ -29,6 +29,7 @@
     {% include 'navbar.html' %}
     <div class="main-content-wrapper">
         <main class="container py-5">
+            <!-- (Navigation tabs removed - headers below are now interactive) -->
             <!-- Search Bar - Visible on all devices -->
             <div class="mb-4">
                 <input type="text" class="form-control search-box mx-auto" placeholder="Search mezmurs by title or lyrics..." id="searchInput" aria-label="Search mezmurs by title or lyrics">
@@ -58,6 +59,10 @@
 
                     <button id="shareFilterBtn" class="btn btn-sm btn-outline-secondary d-none" aria-label="Share current filter" type="button" aria-hidden="true">
                         <i class="bi bi-share me-1" aria-hidden="true"></i> Share
+                    </button>
+
+                    <button id="clearPlaylistFilterBtn" class="btn btn-sm btn-outline-warning d-none" aria-label="Clear playlist filter" type="button" aria-hidden="true">
+                        <i class="bi bi-x-circle me-1" aria-hidden="true"></i> Clear filter
                     </button>
 
                     <div class="ms-auto text-muted small">Tip: use search and tags then Save to keep filters</div>
@@ -222,28 +227,32 @@
                             <!-- Column 1: Private Playlists -->
                             <div class="swipe-slide" id="private-playlists" role="tabpanel" aria-labelledby="private-tab">
                                 <div class="card h-100">
-                                    <div class="card-header bg-primary text-white">
-                                        <h6 class="mb-0"><i class="bi bi-person-lock me-2" aria-hidden="true"></i>Your Collections</h6>
-                                    </div>
+                                        <div class="card-header bg-primary text-white header-link d-flex align-items-center" role="button" data-target="#playlistSidebar" tabindex="0">
+                                            <h6 class="mb-0"><i class="bi bi-person-lock me-2" aria-hidden="true"></i>Your Collections</h6>
+                                        </div>
                                     <div class="card-body p-2">
                                         {% if current_user.is_authenticated %}
                                             {% if current_user.playlists %}
                                                 <div class="playlist-list-mobile">
                                                     {% for playlist in current_user.playlists %}
                                                     <div class="card playlist-card-mobile mb-2" 
-                                                         data-playlist-id="{{ playlist.id }}"
-                                                         onclick="loadPlaylist({{ playlist.id }})" 
-                                                         style="cursor: pointer;">
-                                                        <div class="card-body p-2">
-                                                            <div class="d-flex justify-content-between align-items-start">
-                                                                <div class="flex-grow-1">
-                                                                    <h6 class="mb-1">{{ playlist.name }}</h6>
-                                                                    <p class="text-muted small mb-1">{{ playlist.description }}</p>
-                                                                    <span class="badge bg-secondary small">{{ playlist.song_count }} hymns</span>
+                                                             data-playlist-id="{{ playlist.id }}"
+                                                             style="cursor: pointer;">
+                                                            <div class="card-body p-2">
+                                                                <div class="d-flex justify-content-between align-items-start">
+                                                                    <div class="flex-grow-1" role="button" tabindex="0" onclick="event.stopPropagation(); filterMezmursBySharedPlaylist({{ playlist.id }});">
+                                                                        <h6 class="mb-1">{{ playlist.name }}</h6>
+                                                                        <p class="text-muted small mb-1">{{ playlist.description }}</p>
+                                                                        <span class="badge bg-secondary small">{{ playlist.song_count }} hymns</span>
+                                                                    </div>
+                                                                    <div class="ms-2">
+                                                                        <button class="btn btn-sm btn-outline-primary" type="button" onclick="event.stopPropagation(); loadPlaylist({{ playlist.id }});">
+                                                                            <i class="bi bi-folder2-open"></i>
+                                                                        </button>
+                                                                    </div>
                                                                 </div>
                                                             </div>
                                                         </div>
-                                                    </div>
                                                     {% endfor %}
                                                 </div>
                                             {% else %}
@@ -270,7 +279,7 @@
                             <!-- Column 2: Shared Playlists -->
                             <div class="swipe-slide">
                                 <div class="card h-100">
-                                    <div class="card-header bg-success text-white">
+                                    <div class="card-header bg-success text-white header-link d-flex align-items-center" role="button" data-target="#sharedPlaylistsSection" tabindex="0">
                                         <h6 class="mb-0"><i class="bi bi-globe me-2"></i>Shared Collections</h6>
                                     </div>
                                     <div class="card-body p-2">
@@ -283,7 +292,7 @@
                                                      style="cursor: pointer;">
                                                     <div class="card-body p-2">
                                                         <div class="d-flex justify-content-between align-items-start">
-                                                            <div class="flex-grow-1" onclick="console.log('Mobile card clicked'); event.stopPropagation(); window.location.href='{{ url_for('view_shared_playlist', playlist_id=playlist.id) }}'">
+                                                            <div class="flex-grow-1" onclick="event.stopPropagation(); filterMezmursBySharedPlaylist({{ playlist.id }});">
                                                                 <h6 class="mb-1">{{ playlist.name }}</h6>
                                                                 <p class="text-muted small mb-1">by {{ playlist.user.username }}</p>
                                                                 <p class="small mb-1">{{ playlist.description }}</p>
@@ -374,16 +383,16 @@
                 <div class="col-lg-9">
                     <!-- Shared Playlists Section -->
                     {% if shared_playlists %}
-                    <div class="mb-5">
-                        <h4 class="mb-3">🤝 Shared Collections</h4>
+                    <div id="sharedPlaylistsSection" class="mb-5">
+                        <h4 class="mb-3"><span class="header-link text-reset" role="button" data-target="#sharedPlaylistsSection" tabindex="0">🤝 Shared Collections</span></h4>
                         <div class="shared-playlists-container d-flex overflow-auto pb-3 gap-3">
                             {% for playlist in shared_playlists %}
                             <div class="card shared-playlist-card" 
                                  data-shared-playlist-id="{{ playlist.id }}" 
                                  data-playlist-type="shared"
                                  style="min-width: 300px; flex-shrink: 0;">
-                                <div class="card-body d-flex flex-column">
-                                    <div class="flex-grow-1">
+                                    <div class="card-body d-flex flex-column">
+                                    <div class="flex-grow-1" role="button" tabindex="0" onclick="event.stopPropagation(); filterMezmursBySharedPlaylist({{ playlist.id }});">
                                         <h5 class="card-title">{{ playlist.name }}</h5>
                                         <p class="card-text text-muted small mb-1">by {{ playlist.user.username }}</p>
                                         <p class="card-text small">{{ playlist.description }}</p>
@@ -567,10 +576,10 @@ English Translation:
     </div>
     <!-- Playlist Sidebar -->
     {% if current_user.is_authenticated %}
-    <div class="playlist-sidebar">
+            <div id="playlistSidebar" class="playlist-sidebar">
         <div class="p-3">
             <div class="d-flex justify-content-between align-items-center mb-3">
-                <h4>📜 Your Collections</h4>
+                <h4><span class="header-link text-reset" role="button" data-target="#playlistSidebar" tabindex="0">📜 Your Collections</span></h4>
                 <button class="btn btn-sm btn-outline-success" 
                         data-bs-toggle="modal" 
                         data-bs-target="#createPlaylistModal">
@@ -579,17 +588,19 @@ English Translation:
             </div>            
             <div class="playlist-list">
                 {% for playlist in current_user.playlists %}
-                <div class="card playlist-card mb-2" 
-                     data-playlist-id="{{ playlist.id }}"
-                     onclick="loadPlaylist({{ playlist.id }})" 
-                     style="cursor: pointer;">
+                <div class="card playlist-card mb-2" data-playlist-id="{{ playlist.id }}" style="cursor: pointer;">
                     <div class="card-body">
                         <div class="d-flex justify-content-between align-items-start">
                             <!-- Playlist Info -->
-                            <div class="flex-grow-1">
+                            <div class="flex-grow-1" role="button" tabindex="0" onclick="event.stopPropagation(); filterMezmursBySharedPlaylist({{ playlist.id }});">
                                 <h5 class="mb-1">{{ playlist.name }}</h5>
                                 <p class="text-muted small mb-0">{{ playlist.description }}</p>
                                 <span class="badge bg-secondary">{{playlist.song_count}} hymns</span>
+                            </div>
+                            <div class="ms-2">
+                                <button class="btn btn-sm btn-outline-primary" type="button" onclick="event.stopPropagation(); loadPlaylist({{ playlist.id }});">
+                                    <i class="bi bi-folder2-open"></i>
+                                </button>
                             </div>
                         </div>
                     </div>
@@ -886,7 +897,23 @@ English Translation:
     <script src="{{ url_for('static', filename='js/mezmur.js')}}" defer></script>
     <script src="{{ url_for('static', filename='js/audio.js')}}" defer></script>
     <script>
-       
+    // Smooth in-page navigation for collection headers
+    document.addEventListener('DOMContentLoaded', function() {
+        document.querySelectorAll('.header-link').forEach(function(el) {
+            el.addEventListener('click', function() {
+                const tgt = this.dataset.target;
+                if (!tgt) return;
+                const dest = document.querySelector(tgt);
+                if (dest) dest.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            });
+            el.addEventListener('keydown', function(e) {
+                if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    this.click();
+                }
+            });
+        });
+    });
     </script>
 
 </body>

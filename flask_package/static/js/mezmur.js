@@ -184,6 +184,8 @@ document.addEventListener('DOMContentLoaded', function() {
     // Add event listeners for both desktop and mobile tag checkboxes
     document.querySelectorAll('.tag-list .form-check-input').forEach(checkbox => {
         checkbox.addEventListener('change', function() {
+            // If a playlist filter is active, clear it before applying tag filters
+            try { if (currentPlaylistFilter) clearPlaylistFilter(); } catch (e) { /* ignore */ }
             // central state will be updated and then applied to other UIs and filtering will run
             updateStateFromUI();
             applyStateToUI();
@@ -194,6 +196,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Mobile tag dropdown event listeners
     document.querySelectorAll('.mobile-tag-checkbox').forEach(checkbox => {
         checkbox.addEventListener('change', function() {
+            try { if (currentPlaylistFilter) clearPlaylistFilter(); } catch (e) { /* ignore */ }
             updateStateFromUI();
             applyStateToUI();
             updateMobileTagsDisplay();
@@ -204,6 +207,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Mobile swipe interface tag checkboxes
     document.querySelectorAll('.mobile-tag-checkbox-swipe').forEach(checkbox => {
         checkbox.addEventListener('change', function() {
+            try { if (currentPlaylistFilter) clearPlaylistFilter(); } catch (e) { /* ignore */ }
             updateStateFromUI();
             applyStateToUI();
             filterMezmurs();
@@ -348,6 +352,12 @@ document.addEventListener('DOMContentLoaded', function() {
             const next = encodeURIComponent(location.pathname + location.search);
             window.location.href = `/login?next=${next}`;
         });
+    }
+
+    // Clear playlist filter button
+    const clearPlaylistFilterBtn = document.getElementById('clearPlaylistFilterBtn');
+    if (clearPlaylistFilterBtn) {
+        clearPlaylistFilterBtn.addEventListener('click', clearPlaylistFilter);
     }
 });
 
@@ -2423,8 +2433,8 @@ function setupEventListeners() {
         if (sharedCard && !e.target.closest('button') && !e.target.closest('a')) {
             const playlistId = sharedCard.dataset.sharedPlaylistId;
             if (playlistId) {
-                console.log('Navigating to shared playlist from card click:', playlistId);
-                window.location.href = `/playlist/shared/${playlistId}`;
+                console.log('Filtering mezmurs by shared playlist:', playlistId);
+                filterMezmursBySharedPlaylist(playlistId);
                 return false;
             }
         }
@@ -2701,4 +2711,107 @@ function updateActionButtonsVisibility() {
             btn.disabled = true;
         }
     });
+}
+
+// Global state for current active playlist filter
+let currentPlaylistFilter = null;
+
+// Filter mezmurs by shared playlist songs
+async function filterMezmursBySharedPlaylist(playlistId) {
+    try {
+        // Fetch playlist details and songs
+        const response = await fetch(`/api/playlists/${playlistId}`);
+        if (!response.ok) {
+            showToast('Failed to load playlist', 'error');
+            return;
+        }
+        
+        const playlistData = await response.json();
+        if (!playlistData || !playlistData.songs) {
+            showToast('Playlist is empty', 'warning');
+            return;
+        }
+        
+        // Clear any existing search/tag filters so playlist view is authoritative
+        filterState.tags = [];
+        filterState.q = '';
+        try { applyStateToUI(); } catch (e) { /* ignore if not present */ }
+        try { renderActiveFilterChips(); } catch (e) { /* ignore */ }
+        try { pushFiltersToURL(); } catch (e) { /* ignore */ }
+
+        // Store current filter state for playlist-based filtering
+        currentPlaylistFilter = { id: playlistId, name: playlistData.name };
+        
+        // Extract song IDs from playlist
+        const songIds = new Set(playlistData.songs.map(song => String(song.id)));
+        
+        // Get all mezmur cards and filter them
+        const cards = document.querySelectorAll('.mezmur-card-container');
+        let visibleCount = 0;
+        
+        cards.forEach(card => {
+            const cardMId = card.getAttribute('data-m-id');
+            if (songIds.has(cardMId)) {
+                card.classList.remove('filtered-out');
+                visibleCount++;
+            } else {
+                card.classList.add('filtered-out');
+            }
+        });
+        
+        // Show feedback
+        if (visibleCount === 0) {
+            showToast(`No mezmurs in this collection`, 'info');
+        } else {
+            showToast(`Showing ${visibleCount} mezmur${visibleCount !== 1 ? 's' : ''} from "${playlistData.name}"`, 'success');
+        }
+        
+        // Highlight active playlist card
+        document.querySelectorAll('.shared-playlist-card, .shared-playlist-card-mobile').forEach(c => {
+            c.classList.remove('active-playlist');
+        });
+        document.querySelectorAll(`[data-shared-playlist-id="${playlistId}"]`).forEach(c => {
+            c.classList.add('active-playlist');
+        });
+        
+        // Show clear filter button
+        const clearBtn = document.getElementById('clearPlaylistFilterBtn');
+        if (clearBtn) {
+            clearBtn.classList.remove('d-none');
+            clearBtn.removeAttribute('aria-hidden');
+        }
+        
+        // Scroll to mezmur grid
+        const grid = document.getElementById('mezmurGrid');
+        if (grid) {
+            grid.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+    } catch (error) {
+        console.error('Error filtering by playlist:', error);
+        showToast('Error filtering mezmurs', 'error');
+    }
+}
+
+// Clear playlist filter and show all mezmurs
+function clearPlaylistFilter() {
+    currentPlaylistFilter = null;
+    
+    // Remove filtered-out class from all cards
+    document.querySelectorAll('.mezmur-card-container').forEach(card => {
+        card.classList.remove('filtered-out');
+    });
+    
+    // Remove active-playlist highlighting
+    document.querySelectorAll('.shared-playlist-card.active-playlist, .shared-playlist-card-mobile.active-playlist').forEach(c => {
+        c.classList.remove('active-playlist');
+    });
+    
+    // Hide clear filter button
+    const clearBtn = document.getElementById('clearPlaylistFilterBtn');
+    if (clearBtn) {
+        clearBtn.classList.add('d-none');
+        clearBtn.setAttribute('aria-hidden', 'true');
+    }
+    
+    showToast('Filter cleared', 'info');
 }

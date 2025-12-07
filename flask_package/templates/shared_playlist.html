@@ -26,12 +26,21 @@
                             </div>
                         </div>
                         <div class="col-md-4 text-md-end">
-                            <button class="btn btn-primary me-2" id="playAllBtn">
-                                <i class="bi bi-play-fill me-2"></i>Play All
-                            </button>
-                            <button class="btn btn-outline-secondary" id="sharePlaylistBtn">
-                                <i class="bi bi-share me-2"></i>Share
-                            </button>
+                            <div class="d-flex justify-content-end gap-2">
+                                <a href="{{ url_for('mezmur') }}" class="btn btn-outline-secondary">Back to Mezmurs</a>
+                                <a href="{{ url_for('view_playlists') }}" class="btn btn-outline-secondary">My Playlists</a>
+                                <button class="btn btn-primary" id="playAllBtn">
+                                    <i class="bi bi-play-fill me-2"></i>Play All
+                                </button>
+                                <button class="btn btn-outline-secondary" id="sharePlaylistBtn">
+                                    <i class="bi bi-share me-2"></i>Share
+                                </button>
+                                {% if current_user.is_authenticated %}
+                                <button class="btn btn-success" id="clonePlaylistBtn" data-playlist-id="{{ playlist.id }}">
+                                    <i class="bi bi-clipboard-plus me-2"></i>Clone to My Playlists
+                                </button>
+                                {% endif %}
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -464,6 +473,43 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Initialize on page load
     initAudioPlayer();
+
+    // Clone public playlist into user's playlists (requires login)
+    const cloneBtn = document.getElementById('clonePlaylistBtn');
+    if (cloneBtn) {
+        cloneBtn.addEventListener('click', async function() {
+            const sourceId = this.dataset.playlistId;
+            const defaultName = `Clone of {{ playlist.name | escape }}`;
+            const name = prompt('Enter a name for your cloned playlist:', defaultName);
+            if (!name) return;
+            const description = prompt('Optional: add a description', '{{ playlist.description | escape }}') || '';
+
+            try {
+                const res = await fetch('/api/playlists/clone', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'same-origin',
+                    body: JSON.stringify({ source_playlist_id: parseInt(sourceId,10), name: name.trim(), description: description.trim() })
+                });
+
+                const data = await res.json();
+                if (res.ok && data.status === 'success') {
+                    showToast('Playlist cloned to your collections', 'success');
+                    // Redirect to my playlists or newly created playlist
+                    if (data.playlist_id) {
+                        window.location.href = `/playlist/${data.playlist_id}`;
+                    } else {
+                        window.location.href = '/playlists';
+                    }
+                } else {
+                    showToast(data.message || 'Failed to clone playlist', 'error');
+                }
+            } catch (err) {
+                console.error('Clone error', err);
+                showToast('Network error occurred while cloning', 'error');
+            }
+        });
+    }
 });
 </script>
 {% endblock %}

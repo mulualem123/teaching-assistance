@@ -1,12 +1,61 @@
+{% extends "base.html" %}
 
-  <h2>{{ playlist.name }}</h2>
-  <p>{{ playlist.description }}</p>
-  <h3>Songs</h3>
-  {% for song in songs %}
-    <div class="song">
-      <h4>{{ song[1] }}</h4>  <!-- Assuming song[1] is the title -->
-      <form method="POST" action="{{ url_for('remove_from_playlist', playlist_id=playlist.id, song_id=song[0]) }}">
-        <button type="submit">Remove</button>
-      </form>
+{% block content %}
+<div class="container mt-4">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <nav aria-label="breadcrumb">
+      <ol class="breadcrumb mb-0">
+        <li class="breadcrumb-item"><a href="{{ url_for('mezmur') }}">Mezmurs</a></li>
+        <li class="breadcrumb-item"><a href="{{ url_for('view_playlists') }}">My Playlists</a></li>
+        <li class="breadcrumb-item active" aria-current="page">{{ playlist.name }}</li>
+      </ol>
+    </nav>
+    <div>
+      <a href="{{ url_for('discover_playlists') }}" class="btn btn-outline-success me-2">Discover Shared</a>
+      <a href="{{ url_for('view_playlists') }}" class="btn btn-outline-secondary">Back to Collections</a>
     </div>
-  {% endfor %}
+  </div>
+
+  <div class="card mb-4 playlist-header">
+    <div class="card-body d-flex justify-content-between align-items-start">
+      <div>
+        <h2 class="mb-1">{{ playlist.name }}</h2>
+        <p class="text-muted mb-0">{{ playlist.description or 'No description' }}</p>
+      </div>
+      <div class="text-end">
+        <span class="badge bg-secondary"><i class="bi bi-music-note me-1"></i>{{ songs|length }} songs</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-body p-0">
+      {% if songs %}
+      <div class="list-group list-group-flush">
+        {% for song in songs %}
+        <div class="list-group-item d-flex justify-content-between align-items-center">
+          <div>
+            <h6 class="mb-1">{{ song[1] }}</h6>
+            {% if song[2] %}<small class="text-muted">{{ song[2] }}</small>{% endif %}
+          </div>
+          <div class="d-flex gap-2">
+            <a href="{{ url_for('audio', id=song[0]) }}" class="btn btn-sm btn-outline-primary" download>
+              <i class="bi bi-download"></i>
+            </a>
+            <form method="POST" action="{{ url_for('remove_from_playlist', playlist_id=playlist.id, song_id=song[0]) }}">
+              <button type="submit" class="btn btn-sm btn-outline-danger">Remove</button>
+            </form>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div class="text-center py-5">
+        <i class="bi bi-music-note display-1 text-muted"></i>
+        <h4 class="mt-3 text-muted">No songs in this playlist</h4>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}
