@@ -86,3 +86,10 @@ __MACOSX/
 
 # Leave package-lock.json and other lockfiles tracked (recommended)
 # If you want to ignore lockfiles, add them explicitly here.
+node_modules
+# Python
+__pycache__/
+*.pyc
+
+# Virtual environment
+.venv/
