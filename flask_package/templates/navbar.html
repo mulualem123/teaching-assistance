@@ -70,7 +70,11 @@
               <i class="bi bi-person-circle"></i>
             </a>
             <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="navbarDropdownMenuLink">
-              <li><a class="dropdown-item" href="#">Profile</a></li>
+              {% if endpoint_exists is defined and endpoint_exists('profile') %}
+              <li><a class="dropdown-item" href="{{ url_for('profile') }}">Profile</a></li>
+              {% else %}
+              <li><span class="dropdown-item disabled">Profile</span></li>
+              {% endif %}
               <li><a class="dropdown-item" href="{{url_for('logout')}}">Logout</a></li>
               {% if current_user.is_authenticated and 'admin' in current_user.roles|map(attribute='name') %}
               <li><hr class="dropdown-divider"></li>

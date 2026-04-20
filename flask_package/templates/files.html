@@ -45,6 +45,14 @@
                 var card = document.getElementById('card');
                 card.style.display = 'none';
             }
+            function showRename(fileId) {
+                document.getElementById('rename-' + fileId).style.display = 'inline-block';
+                document.getElementById('rename-btn-' + fileId).style.display = 'none';
+            }
+            function hideRename(fileId) {
+                document.getElementById('rename-' + fileId).style.display = 'none';
+                document.getElementById('rename-btn-' + fileId).style.display = 'inline-block';
+            }
         </script>
     </header>
     <main>
@@ -64,7 +72,28 @@
                             </form>
                             <ul class="list-group list-group-flush" style="max-height: 300px; overflow-y: auto;">
                                 {% for file in files %}
-                                <li class="list-group-item"><a href="{{ url_for('display', filename=file) }}">{{ file }}</a></li>
+                                <li class="list-group-item d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <a href="{{ url_for('display', filename=file) }}">{{ file }}</a>
+                                    </div>
+                                    <div class="d-flex gap-2">
+                                        <form method="POST" action="{{ url_for('process_pptx') }}" style="display:inline-block;">
+                                            <input type="hidden" name="filename" value="{{ file }}">
+                                            <select name="import_mode" class="form-select form-select-sm me-1" style="width: 160px; display:inline-block;">
+                                                <option value="slides">Slides → Mezmurs</option>
+                                                <option value="notes">Speaker notes only</option>
+                                            </select>
+                                            <button type="submit" class="btn btn-sm btn-outline-primary">Process</button>
+                                        </form>
+                                        <button id="rename-btn-{{ loop.index }}" class="btn btn-sm btn-outline-secondary" onclick="showRename({{ loop.index }})">Rename</button>
+                                        <form id="rename-{{ loop.index }}" method="POST" action="{{ url_for('rename_file') }}" style="display: none;">
+                                            <input type="hidden" name="old_filename" value="{{ file }}">
+                                            <input type="text" name="new_filename" class="form-control form-control-sm me-1" style="width: 120px; display:inline-block;" placeholder="New name" required>
+                                            <button type="submit" class="btn btn-sm btn-outline-secondary">Save</button>
+                                            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="hideRename({{ loop.index }})">Cancel</button>
+                                        </form>
+                                    </div>
+                                </li>
                                 {% else %}
                                 <li class="list-group-item text-muted">No files have been uploaded yet.</li>
                                 {% endfor %}

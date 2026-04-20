@@ -35,6 +35,12 @@ charset-normalizer==3.3.2
 idna==2.10
 certifi==2023.11.17
 
+# Google Drive API (optional, required for service account downloads)
+google-api-python-client==2.96.0
+google-auth==2.23.0
+google-auth-httplib2==0.1.0
+gdown==5.1.0
+
 # Translation
 googletrans==4.0.0rc1
 httpx==0.13.3

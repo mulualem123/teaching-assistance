@@ -1,4 +1,5 @@
 import os
+import tempfile
 import base64
 from datetime import datetime
 #import requests
@@ -16,13 +17,32 @@ from .extractpp import extract  #Orginal
 from . import googletransfun    #Orginal
 from . import changealphabet    #Orginal
 from .forms import LoginForm, PlaylistForm    #Orginal
-from .models import db as account_db, User, Role, roles_users, Playlist, PlaylistSong
+from .models import db as account_db, User, Role, roles_users, Playlist, PlaylistSong, SavedFilter
 from flask_security import Security, SQLAlchemyUserDatastore, UserMixin, RoleMixin, roles_required
 from flask_migrate import Migrate  # Import Migrate here
 from werkzeug.security import generate_password_hash
 from werkzeug.utils import secure_filename
 import click
 from flask import jsonify
+import json
+import secrets
+import re
+import requests
+try:
+    from google.oauth2 import service_account
+    from googleapiclient.discovery import build
+    from googleapiclient.http import MediaIoBaseDownload
+    from googleapiclient.errors import HttpError
+    import io
+    _HAS_GOOGLE_LIBS = True
+except Exception:
+    _HAS_GOOGLE_LIBS = False
+
+try:
+    import gdown
+    _HAS_GDOWN = True
+except Exception:
+    _HAS_GDOWN = False
 
 # Import the extended registration form
 from .forms import ExtendedRegisterForm
@@ -89,6 +109,32 @@ with app.app_context():
     db.init_db()  # Creates site.db for mezmur data if it doesn't exist
     account_db.create_all() # Creates users.db for accounts if it doesn't exist
     print("Tables created successfully!")
+    # Ensure saved_filters table has expected columns (migrate if necessary)
+    try:
+        users_db_path = os.path.join(app.instance_path, 'users.db')
+        if os.path.exists(users_db_path):
+            conn = sqlite3.connect(users_db_path)
+            cur = conn.cursor()
+            cur.execute("PRAGMA table_info(saved_filters)")
+            cols = [row[1] for row in cur.fetchall()]
+            # Add is_public column if missing
+            if 'is_public' not in cols:
+                try:
+                    cur.execute("ALTER TABLE saved_filters ADD COLUMN is_public INTEGER DEFAULT 0")
+                    print('Added is_public column to saved_filters')
+                except Exception as e:
+                    print('Failed to add is_public column:', e)
+            # Add share_token column if missing
+            if 'share_token' not in cols:
+                try:
+                    cur.execute("ALTER TABLE saved_filters ADD COLUMN share_token TEXT")
+                    print('Added share_token column to saved_filters')
+                except Exception as e:
+                    print('Failed to add share_token column:', e)
+            conn.commit()
+            conn.close()
+    except Exception as _err:
+        print('Saved filters migration check failed:', _err)
 
 # Import models after initializing account_db to avoid circular imports
 @login_manager.user_loader
@@ -174,6 +220,17 @@ def reset_password_command(email):
         except Exception as e:
             account_db.session.rollback()
             click.echo(f"Error resetting password: {e}")
+
+
+    # Template helper to check for endpoint existence to avoid url_for build errors
+    @app.context_processor
+    def utility_processor():
+        def endpoint_exists(name):
+            try:
+                return name in app.url_map._rules_by_endpoint
+            except Exception:
+                return False
+        return dict(endpoint_exists=endpoint_exists)
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
@@ -317,7 +374,7 @@ def index():
         return render_template("index.html",files = os.listdir(pp_parent_folder), rows= db.get_data(),imageslide1=imageslide1, imageslide2=imageslide2,imageslide3=imageslide3)
     
 # A route to display a form for the user to enter a paragraph in Geez alphabet
-@app.route("/mezmur")
+@app.route("/mezmur", methods=['GET', 'POST'])
 def mezmur():
     files = os.listdir(pp_parent_folder)
     form = PlaylistForm()
@@ -344,7 +401,95 @@ def mezmur():
                             tags=db.get_taglist(),
                             form=form,
                             shared_playlists=shared_playlists
-                           )
+)
+
+
+# Saved Filters API (list, create)
+@app.route('/api/saved_filters', methods=['GET', 'POST'])
+def api_saved_filters():
+    # List saved filters for current user or create a new saved filter
+    if rq.method == 'GET':
+        if not current_user.is_authenticated:
+            return jsonify([]), 401
+        items = []
+        for sf in account_db.session.query(SavedFilter).filter_by(user_id=current_user.id).order_by(SavedFilter.created_at.desc()).all():
+            try:
+                query_obj = json.loads(sf.query) if isinstance(sf.query, str) else sf.query
+            except Exception:
+                query_obj = {}
+            items.append({
+                'id': sf.id,
+                'name': sf.name,
+                'created_at': sf.created_at.isoformat() if sf.created_at else None,
+                'query': query_obj,
+                'is_public': bool(sf.is_public),
+                'share_token': sf.share_token
+            })
+        return jsonify(items)
+
+    # POST -> create
+    if rq.method == 'POST':
+        if not current_user.is_authenticated:
+            return jsonify({'message': 'Authentication required'}), 401
+        data = rq.get_json() or {}
+        name = (data.get('name') or '').strip()
+        if not name:
+            return jsonify({'message': 'Name required'}), 400
+        q = data.get('q', '')
+        tags = data.get('tags', []) or []
+        op = data.get('op', 'or')
+        is_public = bool(data.get('is_public', False))
+
+        # persist
+        try:
+            sf = SavedFilter(user_id=current_user.id, name=name, query=json.dumps({'q': q, 'tags': tags, 'op': op}), is_public=is_public)
+            if is_public and not sf.share_token:
+                sf.share_token = secrets.token_urlsafe(16)
+            account_db.session.add(sf)
+            account_db.session.commit()
+            return jsonify({'id': sf.id, 'name': sf.name, 'created_at': sf.created_at.isoformat(), 'is_public': sf.is_public, 'share_token': sf.share_token}), 201
+        except Exception as e:
+            account_db.session.rollback()
+            return jsonify({'message': 'Failed to save', 'error': str(e)}), 500
+
+
+# Delete or update a saved filter
+@app.route('/api/saved_filters/<int:sf_id>', methods=['DELETE', 'PUT'])
+def api_saved_filter_item(sf_id):
+    sf = account_db.session.get(SavedFilter, sf_id)
+    if not sf:
+        return jsonify({'message': 'Not found'}), 404
+
+    # Ensure ownership
+    if not current_user.is_authenticated or (sf.user_id != current_user.id and 'admin' not in [r.name for r in current_user.roles]):
+        return jsonify({'message': 'Forbidden'}), 403
+
+    if rq.method == 'DELETE':
+        try:
+            account_db.session.delete(sf)
+            account_db.session.commit()
+            return jsonify({'message': 'Deleted'}), 200
+        except Exception as e:
+            account_db.session.rollback()
+            return jsonify({'message': 'Failed to delete', 'error': str(e)}), 500
+
+    # PUT -> update is_public or name
+    if rq.method == 'PUT':
+        data = rq.get_json() or {}
+        if 'is_public' in data:
+            sf.is_public = bool(data.get('is_public'))
+            if sf.is_public and not sf.share_token:
+                sf.share_token = secrets.token_urlsafe(16)
+        if 'name' in data:
+            sf.name = (data.get('name') or sf.name).strip()
+        try:
+            account_db.session.add(sf)
+            account_db.session.commit()
+            return jsonify({'message': 'Updated'}), 200
+        except Exception as e:
+            account_db.session.rollback()
+            return jsonify({'message': 'Failed to update', 'error': str(e)}), 500
+
 
 @app.route("/sundayclass")
 def sundayclass():
@@ -609,6 +754,212 @@ def generate_timed_lyrics(lyrics_text):
     lines = lyrics_text.strip().split('\n')
     timed_lines = [f"[00:00.000]{line.strip()}" for line in lines if line.strip()]
     return '\n'.join(timed_lines)
+
+
+@app.route('/process_pptx', methods=['POST'])
+@login_required
+def process_pptx():
+    """Process an uploaded PowerPoint file into mezmur entries.
+    This is intentionally separate from the upload endpoint.
+    """
+    filename = rq.form.get('filename')
+    import_mode = rq.form.get('import_mode', 'slides')
+
+    if not filename:
+        flash('No filename provided for processing')
+        return redirect(url_for('files'))
+
+    filepath = os.path.join(pp_parent_folder, filename)
+    if not os.path.exists(filepath):
+        flash(f'File not found: {filename}')
+        return redirect(url_for('files'))
+
+    try:
+        # Initialize extractor (class `extract` defined in extractpp.py)
+        extractor = extract(filepath, db, filename)
+
+        # Prevent double-processing if the file already exists in the DB
+        if extractor.checkfile():
+            flash(f'File "{filename}" appears to have been processed already')
+            return redirect(url_for('files'))
+
+        # Run the extraction (this will call db.mv_database internally)
+        extractor.read()
+        flash(f'Extraction completed for {filename}')
+    except Exception as e:
+        # Log and show an error to the user
+        import traceback
+        traceback.print_exc()
+        flash(f'Extraction failed for {filename}: {e}')
+
+    return redirect(url_for('files'))
+
+
+@app.route('/rename_file', methods=['POST'])
+@login_required
+def rename_file():
+    old_filename = rq.form.get('old_filename')
+    new_filename = rq.form.get('new_filename')
+
+    if not old_filename or not new_filename:
+        flash('Invalid input for renaming')
+        return redirect(url_for('files'))
+
+    # Secure the new filename
+    new_filename = secure_filename(new_filename)
+    if not new_filename:
+        flash('Invalid new filename')
+        return redirect(url_for('files'))
+
+    # Ensure it has .pptx extension if not present
+    if not new_filename.lower().endswith('.pptx'):
+        new_filename += '.pptx'
+
+    old_path = os.path.join(pp_parent_folder, old_filename)
+    new_path = os.path.join(pp_parent_folder, new_filename)
+
+    if not os.path.exists(old_path):
+        flash(f'Original file not found: {old_filename}')
+        return redirect(url_for('files'))
+
+    if os.path.exists(new_path):
+        flash('A file with that name already exists')
+        return redirect(url_for('files'))
+
+    try:
+        os.rename(old_path, new_path)
+        flash(f'Renamed "{old_filename}" to "{new_filename}"')
+    except Exception as e:
+        flash(f'Failed to rename file: {e}')
+
+    return redirect(url_for('files'))
+
+
+@app.route('/process_drive', methods=['POST'])
+@login_required
+def process_drive():
+    """Download a public Google Drive file (by share link or ID) and run the extractor.
+    This handler supports public or link-shared files. Private files require OAuth/service account.
+    """
+    drive_url = rq.form.get('drive_url')
+    import_mode = rq.form.get('import_mode', 'slides')
+
+    if not drive_url:
+        flash('Please provide a Google Drive link or file ID')
+        return redirect(url_for('mezmur'))
+
+    # Try to extract a file ID from common Drive URL formats
+    m = re.search(r"/d/([A-Za-z0-9_-]{10,})", drive_url)
+    file_id = None
+    if m:
+        file_id = m.group(1)
+    else:
+        # try query param id=FILEID
+        m2 = re.search(r"[?&]id=([A-Za-z0-9_-]{10,})", drive_url)
+        if m2:
+            file_id = m2.group(1)
+        else:
+            # maybe the user pasted raw id
+            if re.fullmatch(r"[A-Za-z0-9_-]{10,}", drive_url):
+                file_id = drive_url
+
+    if not file_id:
+        flash('Could not parse a Google Drive file ID from the provided value')
+        return redirect(url_for('mezmur'))
+
+    download_success = False
+    dest_filename = f"gdrive_{file_id}.pptx"
+    dest_path = os.path.join(pp_parent_folder, dest_filename)
+
+    # Try service account first if available (handles Google Slides export)
+    if _HAS_GOOGLE_LIBS and os.getenv('GOOGLE_SERVICE_ACCOUNT_FILE'):
+        try:
+            actual_filename = _download_file_with_service_account(file_id, dest_path)
+            dest_filename = actual_filename or dest_filename
+            download_success = True
+        except Exception as e:
+            # Service account failed, try public download as fallback
+            pass
+
+    if not download_success:
+        # Fallback to public download for shared files using gdown
+        if _HAS_GDOWN:
+            try:
+                url = f"https://drive.google.com/uc?id={file_id}"
+                with tempfile.TemporaryDirectory() as temp_dir:
+                    downloaded_path = gdown.download(url, output=temp_dir, quiet=True)
+                    if downloaded_path:
+                        actual_filename = os.path.basename(downloaded_path)
+                        final_path = os.path.join(pp_parent_folder, actual_filename)
+                        os.rename(downloaded_path, final_path)
+                        dest_path = final_path
+                        dest_filename = actual_filename
+                        download_success = True
+                    else:
+                        raise RuntimeError("gdown failed to download")
+            except Exception as e:
+                flash(f'Failed to download file using gdown: {e}')
+                return redirect(url_for('files'))
+        else:
+            flash('gdown not available for public downloads. Install gdown or set up service account.')
+            return redirect(url_for('files'))
+
+    if download_success:
+        # Run extractor
+        try:
+            extractor = extract(dest_path, db, dest_filename)
+            if extractor.checkfile():
+                flash(f'File "{dest_filename}" appears to have been processed already')
+                return redirect(url_for('files'))
+
+            extractor.read()
+            flash(f'Imported {dest_filename} from Google Drive')
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            flash(f'Extraction failed for {dest_filename}: {e}')
+
+    return redirect(url_for('files'))
+
+
+def _download_file_with_service_account(file_id, destination, sa_file=None):
+    """Download a Drive file using a service account. Handles Google Slides export to PPTX.
+    sa_file: path to service account JSON file. If None, uses env var GOOGLE_SERVICE_ACCOUNT_FILE.
+    """
+    if not _HAS_GOOGLE_LIBS:
+        raise RuntimeError('google-api-python-client and google-auth are required for service account downloads')
+
+    if sa_file is None:
+        sa_file = os.getenv('GOOGLE_SERVICE_ACCOUNT_FILE')
+    if not sa_file or not os.path.exists(sa_file):
+        raise RuntimeError('Service account JSON file not found. Set GOOGLE_SERVICE_ACCOUNT_FILE to its path.')
+
+    scopes = ['https://www.googleapis.com/auth/drive.readonly']
+    creds = service_account.Credentials.from_service_account_file(sa_file, scopes=scopes)
+    try:
+        service = build('drive', 'v3', credentials=creds, cache_discovery=False)
+        # Get file metadata
+        meta = service.files().get(fileId=file_id, fields='id,name,mimeType').execute()
+        mime = meta.get('mimeType')
+        filename = meta.get('name') or f'drive_{file_id}'
+
+        fh = io.FileIO(destination, mode='wb')
+        if mime == 'application/vnd.google-apps.presentation':
+            # Export Slides to PPTX
+            request = service.files().export_media(fileId=file_id, mimeType='application/vnd.openxmlformats-officedocument.presentationml.presentation')
+            downloader = MediaIoBaseDownload(fh, request)
+        else:
+            # Download regular file
+            request = service.files().get_media(fileId=file_id)
+            downloader = MediaIoBaseDownload(fh, request)
+
+        done = False
+        while not done:
+            status, done = downloader.next_chunk()
+        fh.close()
+        return filename
+    except HttpError as he:
+        raise RuntimeError(f'Google Drive API error: {he}')
 
 @app.route('/update/<id>',  methods=['GET', 'POST'])
 @login_required
@@ -1185,7 +1536,7 @@ def debug_playlists():
         return jsonify({'error': str(e)}), 500
 
 # API endpoint to get available tags
-@app.route('/api/tags')
+@app.route('/api/tags', methods=['GET'])
 def get_tags():
     """Get all available tags with counts"""
     try:
@@ -1214,6 +1565,272 @@ def get_tags():
     except Exception as e:
         app.logger.error(f"Error fetching tags: {str(e)}")
         return jsonify({'error': 'Failed to fetch tags'}), 500
+
+
+    @app.route('/api/saved_filters', methods=['GET'])
+    @login_required
+    def get_saved_filters():
+        try:
+            saved = SavedFilter.query.filter_by(user_id=current_user.id).order_by(SavedFilter.created_at.desc()).all()
+            result = []
+            for s in saved:
+                try:
+                    payload = json.loads(s.query)
+                except Exception:
+                    payload = {'q': '', 'tags': [], 'op': 'or'}
+
+                result.append({
+                    'id': s.id,
+                    'name': s.name,
+                    'query': payload,
+                    'created_at': s.created_at.isoformat() if s.created_at else None
+                })
+
+            return jsonify(result)
+        except Exception as e:
+            app.logger.exception(f"Error in get_saved_filters: {e}")
+            return jsonify({'error': 'Failed to load saved filters'}), 500
+
+
+    @app.route('/profile')
+    @login_required
+    def profile():
+        """User profile page - lets user manage saved filters"""
+        return render_template('profile.html')
+
+
+    @app.route('/api/saved_filters', methods=['POST'])
+    @login_required
+    def create_saved_filter():
+        try:
+            data = rq.get_json() or {}
+            name = data.get('name', '').strip()
+            if not name:
+                return jsonify({'error': 'Filter name is required'}), 400
+
+            q = data.get('q', '')
+            tags = data.get('tags', [])
+            op = data.get('op', 'or')
+
+            payload = json.dumps({'q': q, 'tags': tags, 'op': op})
+
+            # allow public flag optionally
+            is_public = bool(data.get('is_public', False))
+            share_token = None
+            if is_public:
+                # create a small UUID-like token
+                import secrets
+                share_token = secrets.token_urlsafe(16)
+
+            sf = SavedFilter(user_id=current_user.id, name=name, query=payload, is_public=is_public, share_token=share_token)
+            account_db.session.add(sf)
+            account_db.session.commit()
+
+            return jsonify({'id': sf.id, 'name': sf.name, 'query': json.loads(sf.query)}), 201
+        except Exception as e:
+            app.logger.exception(f"Error creating saved filter: {e}")
+            return jsonify({'error': 'Failed to save filter'}), 500
+
+
+    @app.route('/api/saved_filters/<int:filter_id>', methods=['DELETE'])
+    @login_required
+    def delete_saved_filter(filter_id):
+        try:
+            sf = SavedFilter.query.get(filter_id)
+            if not sf:
+                return jsonify({'error': 'Not found'}), 404
+            if sf.user_id != current_user.id:
+                return jsonify({'error': 'Forbidden'}), 403
+
+            account_db.session.delete(sf)
+            account_db.session.commit()
+            return jsonify({'status': 'deleted'})
+        except Exception as e:
+            app.logger.exception(f"Error deleting saved filter: {e}")
+            return jsonify({'error': 'Failed to delete filter'}), 500
+
+
+    @app.route('/api/saved_filters/<int:filter_id>', methods=['PUT'])
+    @login_required
+    def update_saved_filter(filter_id):
+        try:
+            sf = SavedFilter.query.get(filter_id)
+            if not sf:
+                return jsonify({'error': 'Not found'}), 404
+            if sf.user_id != current_user.id:
+                return jsonify({'error': 'Forbidden'}), 403
+
+            data = rq.get_json() or {}
+            # allow toggling public
+            if 'is_public' in data:
+                is_public = bool(data.get('is_public'))
+                sf.is_public = is_public
+                if is_public and not sf.share_token:
+                    import secrets
+                    sf.share_token = secrets.token_urlsafe(16)
+                if not is_public:
+                    sf.share_token = None
+
+            account_db.session.commit()
+            return jsonify({'id': sf.id, 'is_public': sf.is_public, 'share_token': sf.share_token})
+        except Exception as e:
+            app.logger.exception(f"Error updating saved filter: {e}")
+            return jsonify({'error': 'Failed to update saved filter'}), 500
+
+
+    @app.route('/api/public_filters', methods=['GET'])
+    def list_public_filters():
+        try:
+            public = SavedFilter.query.filter_by(is_public=True).order_by(SavedFilter.created_at.desc()).all()
+            return jsonify([{
+                'id': s.id,
+                'name': s.name,
+                'query': json.loads(s.query),
+                'share_token': s.share_token,
+                'created_at': s.created_at.isoformat() if s.created_at else None,
+                'user_id': s.user_id
+            } for s in public])
+        except Exception as e:
+            app.logger.exception(f"Error listing public filters: {e}")
+            return jsonify({'error':'failed'}), 500
+
+
+    @app.route('/api/saved_filters/shared/<token>', methods=['GET'])
+    def get_shared_filter(token):
+        try:
+            sf = SavedFilter.query.filter_by(share_token=token, is_public=True).first()
+            if not sf:
+                return jsonify({'error': 'Not found'}), 404
+            return jsonify({'id': sf.id, 'name': sf.name, 'query': json.loads(sf.query), 'user_id': sf.user_id})
+        except Exception as e:
+            app.logger.exception(f"Error retrieving shared filter: {e}")
+            return jsonify({'error':'failed'}), 500
+
+
+@app.route('/api/mezmurs', methods=['GET'])
+def api_mezmurs():
+    """API: GET /api/mezmurs?q=&tags=a,b&op=and&page=1&perPage=24
+    Returns JSON: { total, page, perPage, items: [{m_id,title,azmach,engTrans,dir,created}], facets: {tags:[{name,count}]}}
+    """
+    try:
+        q = rq.args.get('q', '').strip()
+        tags_param = rq.args.get('tags', '').strip()
+        tags = [t.strip() for t in tags_param.split(',') if t.strip()]
+        op = rq.args.get('op', 'or').lower()
+        page = max(int(rq.args.get('page', 1)), 1)
+        per_page = max(int(rq.args.get('perPage', 24)), 1)
+
+        conn = db.get_db()
+        cursor = conn.cursor()
+
+        where_clauses = []
+        params = []
+
+        if q:
+            # Search title, azmach, azmachen, engTrans
+            like = f"%{q}%"
+            where_clauses.append("(title LIKE ? OR azmach LIKE ? OR azmachen LIKE ? OR engTrans LIKE ?)")
+            params.extend([like, like, like, like])
+
+        if tags:
+            if op == 'and':
+                # require each tag exists for a mezmur
+                for t in tags:
+                    where_clauses.append("EXISTS (SELECT 1 FROM mezTags mt WHERE mt.m_id = mezmur.m_id AND mt.tag = ?)")
+                    params.append(t)
+            else:
+                # OR semantics - mezmur appears if any of the tags match
+                placeholders = ','.join(['?'] * len(tags))
+                where_clauses.append(f"mezmur.m_id IN (SELECT m_id FROM mezTags mt WHERE mt.tag IN ({placeholders}))")
+                params.extend(tags)
+
+        where_sql = ('WHERE ' + ' AND '.join(where_clauses)) if where_clauses else ''
+
+        # total count
+        count_sql = f"SELECT COUNT(*) as total FROM mezmur {where_sql}"
+        cursor.execute(count_sql, params)
+        total = cursor.fetchone()[0] or 0
+
+        # items - basic columns
+        offset = (page - 1) * per_page
+        items_sql = f"SELECT m_id, title, titleen, azmach, azmachen, engTrans, dir, audio_file, created FROM mezmur {where_sql} ORDER BY m_id DESC LIMIT ? OFFSET ?"
+        items_params = params + [per_page, offset]
+        cursor.execute(items_sql, items_params)
+        rows = cursor.fetchall()
+
+        items = []
+        for r in rows:
+            items.append({
+                'm_id': r['m_id'],
+                'title': r['title'],
+                'titleen': r['titleen'],
+                'azmach': r['azmach'],
+                'azmachen': r['azmachen'],
+                'engTrans': r['engTrans'],
+                'dir': r['dir'],
+                'audio_file': r['audio_file'],
+                'created': r['created']
+            })
+
+        # Facet counts -> compute counts per tag that reflect the current search q
+        # For each tag t, compute number of mezmur that would match when t is included along with the current q
+        tag_list = [r['tag'] for r in conn.execute('SELECT tag FROM tagList').fetchall()]
+
+        facets = []
+        # Build q-only where clause to use as base
+        base_where = ""
+        base_params = []
+        if q:
+            like = f"%{q}%"
+            base_where = "WHERE (title LIKE ? OR azmach LIKE ? OR azmachen LIKE ? OR engTrans LIKE ? )"
+            base_params = [like, like, like, like]
+
+        # If there are no selected tags, we can compute simple counts by joining base query with mezTags
+        for t in tag_list:
+            try:
+                # effective tags set = current tags + candidate t (ensure unique)
+                effective_tags = list(dict.fromkeys(tags + [t]))
+
+                if effective_tags:
+                    # For OR: any of effective_tags
+                    if op == 'or':
+                        placeholders = ','.join(['?'] * len(effective_tags))
+                        facet_sql = f"SELECT COUNT(DISTINCT mezmur.m_id) as cnt FROM mezmur JOIN mezTags mt ON mt.m_id = mezmur.m_id {base_where} AND mezmur.m_id IN (SELECT m_id FROM mezTags WHERE tag IN ({placeholders}))"
+                        params_for_facet = base_params + effective_tags
+                    else:
+                        # AND: mezmur must have all effective_tags
+                        # Build EXISTS clauses for each tag
+                        exists_clauses = ' AND '.join(["EXISTS (SELECT 1 FROM mezTags mt2 WHERE mt2.m_id = mezmur.m_id AND mt2.tag = ?)" for _ in effective_tags])
+                        facet_sql = f"SELECT COUNT(*) as cnt FROM mezmur {base_where} AND {exists_clauses}"
+                        params_for_facet = base_params + effective_tags
+                else:
+                    # No tag filter -> count all matching base (q)
+                    facet_sql = f"SELECT COUNT(*) as cnt FROM mezmur {base_where}"
+                    params_for_facet = base_params
+
+                cursor.execute(facet_sql, params_for_facet)
+                cnt = cursor.fetchone()[0] or 0
+                facets.append({'name': t, 'count': cnt})
+            except Exception:
+                # On any failure just return 0 for safety
+                facets.append({'name': t, 'count': 0})
+
+        # sort facets by count desc to return useful ordering
+        facets.sort(key=lambda x: x['count'], reverse=True)
+
+        return jsonify({
+            'total': total,
+            'page': page,
+            'perPage': per_page,
+            'items': items,
+            'facets': {
+                'tags': facets
+            }
+        })
+
+    except Exception as e:
+        app.logger.exception(f"Error in /api/mezmurs: {e}")
+        return jsonify({'error': 'Failed to fetch mezmurs'}), 500
         
 # View a single playlist and its songs
 @app.route('/playlist/<int:playlist_id>')
