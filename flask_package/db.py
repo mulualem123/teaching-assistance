@@ -31,17 +31,17 @@ def add_data(data):
 
 #Add mezmur into database from files (PP). 
 def mv_database(title, geez_text, latin_text, engTrans, filename, audio, cat1, cat2, cat3,
-               timed_geez=None, timed_latin=None, timed_english=None):
+           timed_geez=None, timed_latin=None, timed_english=None):
     db_ob = get_db()
     sql = '''INSERT INTO mezmur 
-            (title, azmach, azmachen, engTrans, dir, audio_file, cat1, cat2, cat3,
-             timed_geez, timed_latin, timed_english) 
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'''
+        (title, azmach, azmachen, engTrans, dir, audio_file, cat1, cat2, cat3,
+         timed_geez, timed_latin, timed_english) 
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'''
     values = (title, geez_text, latin_text, engTrans, filename, audio, cat1, cat2, cat3,
-              timed_geez, timed_latin, timed_english)
-    db_ob.execute(sql, values)
+          timed_geez, timed_latin, timed_english)
+    cursor = db_ob.execute(sql, values)
     db_ob.commit()
-    return 'Mezmur added successfully with timed lyrics support'
+    return cursor.lastrowid
 
 #Add a new Mezmur to database. 
 def add_mezmur(title, titleen, geez_text, alpha_text, engTrans, timed_geez, timed_latin, timed_english, audioFilepath, tags):
@@ -202,11 +202,55 @@ def get_data():
     sql = 'SELECT * FROM mezmur'
     cursor.execute(sql)
     data = cursor.fetchall()
-    #for word in data:
-    #    print(word)
-    #print(data)
-    #cursor.close()
     return data
+
+def get_mezmurs_by_file(filename):
+    """Get all mezmurs extracted from a specific PowerPoint file."""
+    db_ob = get_db()
+    cursor = db_ob.cursor()
+    sql = 'SELECT m_id, title, titleen, azmach, azmachen, engTrans FROM mezmur WHERE dir = ? ORDER BY m_id DESC'
+    cursor.execute(sql, (filename,))
+    data = cursor.fetchall()
+    # Convert to list of dicts for JSON serialization
+    result = []
+    for row in data:
+        result.append({
+            'm_id': row[0],
+            'title': row[1],
+            'titleen': row[2] if row[2] else '',
+            'azmach': row[3],
+            'azmachen': row[4],
+            'engTrans': row[5] if row[5] else ''
+        })
+    return result
+
+def find_mezmur_by_title(title):
+    """Find an existing mezmur by exact title (case-insensitive)."""
+    if not title:
+        return None
+
+    db_ob = get_db()
+    sql = 'SELECT m_id, title, titleen, azmach, azmachen, engTrans, dir FROM mezmur WHERE title = ? COLLATE NOCASE LIMIT 1'
+    return db_ob.execute(sql, (title.strip(),)).fetchone()
+
+def normalize_azmach_text(text, line_count=3):
+    if not text:
+        return ''
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    return '\n'.join(lines[:line_count]).lower()
+
+def find_mezmur_by_azmach(azmach):
+    """Find an existing mezmur by its first three azmach lines."""
+    normalized = normalize_azmach_text(azmach)
+    if not normalized:
+        return None
+
+    db_ob = get_db()
+    cursor = db_ob.execute('SELECT m_id, title, titleen, azmach, azmachen, engTrans, dir FROM mezmur WHERE azmach IS NOT NULL')
+    for row in cursor.fetchall():
+        if normalize_azmach_text(row['azmach']) == normalized:
+            return row
+    return None
 
 #def search (search_term):
 ##    #Split the search term into individual words

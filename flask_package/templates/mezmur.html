@@ -968,6 +968,80 @@ English Translation:
     </div>
 </div>
 
+<!-- Extraction Results Modal -->
+<div class="modal fade" id="extractionResultsModal" tabindex="-1" aria-labelledby="extractionResultsModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title" id="extractionResultsModalLabel">
+                    <i class="bi bi-check-circle me-2"></i>Extraction Complete
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                {% if newly_extracted %}
+                <div class="alert alert-success" role="alert">
+                    <i class="bi bi-info-circle me-2"></i>
+                    Successfully extracted <strong>{{ newly_extracted|length }} mezmur(s)</strong> from <strong>{{ extraction_filename }}</strong>
+                </div>
+                {% if extraction_skipped %}
+                <div class="alert alert-warning" role="alert">
+                    <i class="bi bi-exclamation-triangle me-2"></i>
+                    Skipped <strong>{{ extraction_skipped|length }}</strong> mezmur(s) because the first three azmach lines already exist or the azmach is empty.
+                </div>
+                <ul class="list-group mb-3">
+                    {% for dup in extraction_skipped %}
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                        <span>{{ dup.title or 'Untitled' }}</span>
+                        <div class="text-end">
+                            <small class="text-muted d-block">{{ dup.reason|replace('_', ' ')|capitalize }}</small>
+                            <small class="text-muted d-block">ID: {{ dup.m_id if dup.m_id else 'N/A' }}</small>
+                        </div>
+                        {% if dup.reason == 'duplicate azmach' %}
+                        <span class="badge bg-warning text-dark">Already exists</span>
+                        {% else %}
+                        <span class="badge bg-secondary text-dark">Skipped</span>
+                        {% endif %}
+                    </li>
+                    {% endfor %}
+                </ul>
+                {% endif %}
+                <div class="list-group" style="max-height: 400px; overflow-y: auto;">
+                    {% for mezmur in newly_extracted %}
+                    <a href="{{ url_for('update', id=mezmur.m_id) }}" target="_blank" rel="noopener noreferrer" class="list-group-item list-group-item-action">
+                        <div class="d-flex w-100 justify-content-between align-items-start">
+                            <div>
+                                <h6 class="mb-1">{{ mezmur.title }}</h6>
+                                {% if mezmur.titleen %}
+                                <p class="mb-1 text-muted small">{{ mezmur.titleen }}</p>
+                                {% endif %}
+                                <small class="text-truncate d-block">{{ mezmur.azmach[:100] if mezmur.azmach else 'No lyrics' }}...</small>
+                            </div>
+                            <div class="text-end">
+                                <small class="text-muted d-block mb-2">ID: {{ mezmur.m_id }}</small>
+                                {% if mezmur.m_id in extraction_added_ids %}
+                                <span class="badge bg-success mb-1">Added</span>
+                                {% endif %}
+                                <span class="badge bg-primary">Edit</span>
+                            </div>
+                        </div>
+                    </a>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="alert alert-info" role="alert">
+                    No newly extracted mezmurs found for this file.
+                </div>
+                {% endif %}
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <a href="{{ url_for('mezmur') }}" class="btn btn-primary">View All Mezmurs</a>
+            </div>
+        </div>
+    </div>
+</div>
+
     <!-- Scripts -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/masonry/4.2.2/masonry.pkgd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
@@ -990,6 +1064,12 @@ English Translation:
                 }
             });
         });
+        
+        // Show extraction modal if newly extracted mezmurs exist
+        {% if show_extraction_modal %}
+        const modal = new bootstrap.Modal(document.getElementById('extractionResultsModal'), {});
+        modal.show();
+        {% endif %}
     });
     </script>
 

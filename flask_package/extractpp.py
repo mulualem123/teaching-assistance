@@ -12,6 +12,10 @@ class extract:
         self.db = db
         #filename is for the database entry. 
         self.filename = filename
+        self.skipped = []
+        self.duplicates = []
+        self.added_count = 0
+        self.added_ids = []
 
     # A function to check if the files that has been selected are in the database
     ## You might have to change the id of the row.       
@@ -84,8 +88,20 @@ class extract:
                              text = cell.text
                              #check if the text is not empty
                              if text:
-                                 #add the text to the database
-                                 self.db.mv_database(geez_title_text,text,self.filename)
+                                    # For table cell content, compare by azmach lines rather than title.
+                                    existing = self.db.find_mezmur_by_azmach(text)
+                                    if existing:
+                                        self.duplicates.append({'title': existing['title'], 'm_id': existing['m_id']})
+                                        self.skipped.append({
+                                            'title': existing['title'] or 'Untitled',
+                                            'm_id': existing['m_id'],
+                                            'reason': 'duplicate azmach'
+                                        })
+                                    else:
+                                        new_id = self.db.mv_database(geez_title_text, text, "", "NA", self.filename, "NA", "NA", "NA", "NA")
+                                        if new_id:
+                                            self.added_ids.append(new_id)
+                                        self.added_count += 1
                  else:
                     #print("I am last" + str(track))
                     track+=1
@@ -140,7 +156,35 @@ class extract:
                         #    text = paragraph.text
                         #    print("This is not in text frame. " + str(text))
                         print ("Thid is not shape.text_frame ")
-             self.db.mv_database(geez_title_text, geez_text_content,en_apha_text_content,"NA",self.filename,"NA","NA","NA","NA")
+
+             # final insert for the slide only if azmach text exists
+             if geez_text_content.strip():
+                 existing = self.db.find_mezmur_by_azmach(geez_text_content)
+                 if existing:
+                     self.duplicates.append({'title': geez_title_text, 'm_id': existing['m_id']})
+                     self.skipped.append({
+                         'title': geez_title_text or 'Untitled',
+                         'm_id': existing['m_id'],
+                         'reason': 'duplicate azmach'
+                     })
+                 else:
+                     new_id = self.db.mv_database(geez_title_text, geez_text_content, en_apha_text_content, "NA", self.filename, "NA", "NA", "NA", "NA")
+                     if new_id:
+                         self.added_ids.append(new_id)
+                     self.added_count += 1
+             else:
+                 print(f"Skipping slide {slideTrack} because azmach is empty")
+                 self.skipped.append({
+                     'title': geez_title_text or 'Untitled',
+                     'm_id': None,
+                     'reason': 'empty azmach'
+                 })
+         return {
+             'added': self.added_count,
+             'added_ids': self.added_ids,
+             'duplicates': self.duplicates,
+             'skipped': self.skipped
+         }
 ## There might be a bug. more monitering required.
 ### Need each stence to be in a new line              
 # set the title to the first alphabet of the paragraph and when track is zero --Solved

@@ -6,7 +6,7 @@ from datetime import datetime
 import requests # Uncommented: Required for Telegram send_message function
 import fitz as fz
 import sqlite3
-from flask import Flask, render_template,send_from_directory, send_file, request as rq, flash, redirect, url_for, abort
+from flask import Flask, render_template,send_from_directory, send_file, request as rq, flash, redirect, url_for, abort, session
 from pptx import Presentation
 from flask_mail import Mail, Message
 from flask_sqlalchemy import SQLAlchemy #Account creation
@@ -784,8 +784,12 @@ def process_pptx():
             return redirect(url_for('files'))
 
         # Run the extraction (this will call db.mv_database internally)
-        extractor.read()
+        result = extractor.read()
+        session['extraction_skipped'] = result.get('skipped', []) if result else []
+        session['extraction_added_ids'] = result.get('added_ids', []) if result else []
         flash(f'Extraction completed for {filename}')
+        # Redirect to show newly extracted mezmurs
+        return redirect(url_for('show_newly_extracted', filename=filename))
     except Exception as e:
         # Log and show an error to the user
         import traceback
@@ -793,6 +797,55 @@ def process_pptx():
         flash(f'Extraction failed for {filename}: {e}')
 
     return redirect(url_for('files'))
+
+
+@app.route('/newly_extracted/<filename>')
+@login_required
+def show_newly_extracted(filename):
+    """Show newly extracted mezmurs from a PowerPoint file in a modal."""
+    try:
+        newly_extracted = db.get_mezmurs_by_file(filename)
+        files = os.listdir(pp_parent_folder)
+        form = PlaylistForm()
+        shared_playlists = Playlist.query.filter_by(shared=True).order_by(Playlist.created_at.desc()).all()
+        mez_tags = db.get_allMezTags()
+        extraction_skipped = session.pop('extraction_skipped', [])
+        extraction_added_ids = set(session.pop('extraction_added_ids', []))
+        return render_template('mezmur.html', 
+                               latin_text=changealphabet.geez_to_latin(geez_text),
+                               lg_text=googletransfun.check_language_type(geez_text),
+                               geez_text_t=geez_text,
+                               translated_text=googletransfun.translate_tig_eng(geez_text),
+                               files=files,
+                               rows=db.get_data(),
+                               mez_tags=mez_tags,
+                               tags=db.get_taglist(),
+                               form=form,
+                               shared_playlists=shared_playlists,
+                               newly_extracted=newly_extracted,
+                               extraction_skipped=extraction_skipped,
+                               extraction_added_ids=extraction_added_ids,
+                               show_extraction_modal=True,
+                               extraction_filename=filename)
+    except Exception as e:
+        flash(f'Error retrieving extracted mezmurs: {e}')
+        return redirect(url_for('files'))
+
+
+@app.route('/api/newly_extracted/<filename>')
+@login_required
+def api_newly_extracted(filename):
+    """API endpoint to get newly extracted mezmurs as JSON."""
+    try:
+        newly_extracted = db.get_mezmurs_by_file(filename)
+        return jsonify({
+            'success': True,
+            'filename': filename,
+            'count': len(newly_extracted),
+            'mezmurs': newly_extracted
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 @app.route('/rename_file', methods=['POST'])
@@ -914,6 +967,8 @@ def process_drive():
 
             extractor.read()
             flash(f'Imported {dest_filename} from Google Drive')
+            # Redirect to show newly extracted mezmurs
+            return redirect(url_for('show_newly_extracted', filename=dest_filename))
         except Exception as e:
             import traceback
             traceback.print_exc()
