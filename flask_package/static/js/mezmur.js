@@ -1283,31 +1283,43 @@ function hideLoadingSpinner(element) {
 
 async function loadPlaylist(playlistId, forceReload = false) {
     const loadButton = document.querySelector(`[onclick="loadPlaylist(${playlistId})"]`);
-    
+
     try {
         showLoadingSpinner(loadButton, 'Opening...');
-        
-        const response = await fetch(`/api/playlists/${playlistId}${forceReload ? '?t=' + Date.now() : ''}`);
-        
-        if (!response.ok) {
-            if (response.status === 404) {
-                throw new Error(`Playlist not found. It may have been deleted or you don't have access.`);
-            } else if (response.status === 403) {
-                throw new Error(`Access denied. Please make sure you're logged in and own this playlist.`);
-            } else if (response.status === 401) {
-                throw new Error(`Please log in to access your playlists.`);
-            } else {
-                throw new Error(`Failed to load playlist (Error ${response.status})`);
-            }
+
+        // Try the public endpoint first (works for anonymous users on shared
+        // playlists), then fall back to the authenticated endpoint for owners
+        // and admins. fetchPlaylistData() returns null on both 401/403/404, so
+        // we surface a friendly message in that case.
+        let playlist = null;
+        try {
+            playlist = await fetchPlaylistData(playlistId);
+        } catch (e) {
+            console.warn('fetchPlaylistData threw:', e);
         }
 
-        const playlist = await response.json();
-        
-        if (playlist.status === 'error') {
-            throw new Error(playlist.message || 'Failed to load playlist');
+        // If a force-reload was requested and we got data, hit the authed
+        // endpoint with a cache-buster to refresh.
+        if (playlist && forceReload) {
+            try {
+                const r = await fetch(`/api/playlists/${playlistId}?t=${Date.now()}`, {
+                    headers: { 'Accept': 'application/json' },
+                    credentials: 'same-origin'
+                });
+                const ct = r.headers.get('content-type') || '';
+                if (r.ok && ct.includes('application/json')) {
+                    playlist = await r.json();
+                }
+            } catch (_) { /* keep cached `playlist` */ }
         }
-        
-        if (!playlist?.songs) {
+
+        if (!playlist) {
+            throw new Error(`Playlist not found, private, or you don't have access.`);
+        }
+        if (playlist.status === 'error' || playlist.error) {
+            throw new Error(playlist.message || playlist.error || 'Failed to load playlist');
+        }
+        if (!playlist.songs) {
             throw new Error('Invalid playlist data received from server');
         }
         
@@ -1841,7 +1853,7 @@ function refreshPlaylistSidebar(playlists) {
         playlistCard.innerHTML = `
             <div class="card-body"
                  data-playlist-id="${ playlist.id }"
-                 onclick="loadPlaylist(${ playlist.id })" 
+                 onclick="event.stopPropagation(); filterMezmursBySharedPlaylist(${ playlist.id });" 
                  style="cursor: pointer;">
                 <div class="d-flex justify-content-between align-items-start">
                     <!-- Playlist Info -->
@@ -1850,32 +1862,48 @@ function refreshPlaylistSidebar(playlists) {
                         <p class="text-muted small mb-0">${ playlist.description }</p>
                         <span class="badge bg-secondary">${playlist.song_count} hymns</span>
                     </div>
+                    <div class="ms-2" onclick="event.stopPropagation()">
+                        <ul >
+                            <!-- Open Button -->
+                                <button class="btn btn-sm btn-primary" 
+                                        data-load-playlist
+                                        onclick="loadPlaylist(${ playlist.id })"  
+                                        data-playlist-id="${ playlist.id }">
+                                    <i class="bi bi-folder2-open me-2"></i>Open
+                                </button>                          
+                            <!-- Delete Option -->
+                                <button class="btn btn-sm btn-danger" 
+                                        onclick="event.stopPropagation(); deletePlaylist(${ playlist.id })">
+                                    <i class="bi bi-trash me-2"></i>Delete
+                                </button>
+                        </ul>
+                    </div>
                     <!-- Three-dot Menu -->
-                    <div class="dropdown ms-2" onclick="event.stopPropagation()">
+                    <!-- <div class="dropdown ms-2" onclick="event.stopPropagation()">
                         <button class="btn btn-link p-0 text-muted" 
                                 type="button" 
                                 data-bs-toggle="dropdown">
                             <i class="bi bi-three-dots-vertical"></i>
                         </button>
-                        <ul class="dropdown-menu dropdown-menu-end">
+                        <ul class="dropdown-menu dropdown-menu-end">  -->
                             <!-- Open Button -->
-                            <li>
+                        <!--     <li>
                                 <button class="dropdown-item" 
                                         data-load-playlist
                                         onclick="loadPlaylist(${ playlist.id })"  
                                         data-playlist-id="${ playlist.id }">
                                     <i class="bi bi-folder2-open me-2"></i>Open
                                 </button>
-                            </li>                           
+                            </li>       -->                    
                             <!-- Delete Option -->
-                            <li>
+                        <!--    <li>
                                 <button class="dropdown-item text-danger" 
                                         onclick="event.stopPropagation(); deletePlaylist(${ playlist.id })">
                                     <i class="bi bi-trash me-2"></i>Delete
                                 </button>
                             </li>
                         </ul>
-                    </div>
+                    </div> -->
                 </div>
             </div>
         `;  
@@ -2332,6 +2360,75 @@ function updateShareContentPreview() {
         : block;
 }
 
+/**
+ * Generate a PowerPoint (.pptx) for the currently loaded playlist.
+ * Uses whichever lyric-field checkboxes are ticked in the share modal.
+ * Falls back to Azmach if nothing is selected. Streams the file from the
+ * server and triggers a browser download.
+ */
+async function generatePlaylistPptx() {
+    const pid = getSharePlaylistId();
+    if (!pid) {
+        showToast('No playlist loaded — open a playlist first.', 'warning');
+        return;
+    }
+
+    // Default to azmach if the user hasn't ticked any lyric checkbox.
+    const fields = getSelectedShareFields().map(f => f.field);
+    if (!fields.length) fields.push('azmach');
+
+    const layoutInput = document.querySelector('input[name="pptxLayout"]:checked');
+    const layout = (layoutInput && layoutInput.value) || 'split';
+
+    const btn = document.getElementById('generatePptxBtn');
+    if (btn) showLoadingSpinner(btn, 'Building...');
+
+    try {
+        const params = new URLSearchParams({
+            fields: fields.join(','),
+            layout,
+        });
+        const res = await fetch(`/api/playlists/${pid}/pptx?${params.toString()}`, {
+            credentials: 'same-origin',
+        });
+        if (!res.ok) {
+            // Try to surface a JSON error message; otherwise generic.
+            let msg = `Server returned ${res.status}`;
+            try {
+                const data = await res.json();
+                if (data && data.message) msg = data.message;
+            } catch (_) { /* not JSON */ }
+            throw new Error(msg);
+        }
+
+        const blob = await res.blob();
+
+        // Pull a friendly filename from Content-Disposition if present.
+        let filename = `${getSharePlaylistName() || 'playlist'}.pptx`;
+        const cd = res.headers.get('Content-Disposition') || '';
+        const m = /filename="?([^";]+)"?/i.exec(cd);
+        if (m && m[1]) filename = m[1];
+
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        // Defer revocation to make sure the download had time to start.
+        setTimeout(() => URL.revokeObjectURL(url), 1500);
+
+        showToast('PowerPoint generated', 'success');
+    } catch (err) {
+        console.error('Failed to generate pptx:', err);
+        showToast(`Could not generate PowerPoint: ${err.message}`, 'error');
+    } finally {
+        if (btn) hideLoadingSpinner(btn);
+    }
+}
+window.generatePlaylistPptx = generatePlaylistPptx;
+
 // Mark the playlist as publicly shared (so non-owners can view it). Best-effort:
 // if the user is the owner the backend sets shared=true; otherwise the call
 // is a no-op (403). Sends {shared: true} explicitly so the call is idempotent
@@ -2380,6 +2477,26 @@ document.addEventListener('DOMContentLoaded', () => {
             dlBtn.innerHTML = dlBtn.dataset.originalHtml;
             delete dlBtn.dataset.originalHtml;
             dlBtn.disabled = false;
+        }
+        const sendBtn = document.getElementById('shareAudioFilesBtn');
+        if (sendBtn) {
+            if (sendBtn.dataset.originalHtml) {
+                sendBtn.innerHTML = sendBtn.dataset.originalHtml;
+                delete sendBtn.dataset.originalHtml;
+            }
+            sendBtn.disabled = false;
+            // Hide the button entirely on devices that can't attach files
+            // (most desktop browsers) so users aren't presented with a control
+            // that will only ever show a "not supported" warning.
+            try {
+                const probe = new File([new Blob(['x'])], 'probe.mp3', { type: 'audio/mpeg' });
+                const supported = !!(navigator.canShare &&
+                                     navigator.share &&
+                                     navigator.canShare({ files: [probe] }));
+                sendBtn.classList.toggle('d-none', !supported);
+            } catch (_) {
+                sendBtn.classList.add('d-none');
+            }
         }
         // Best-effort: ensure the playlist is publicly viewable for recipients
         ensurePlaylistShared(pid);
@@ -2659,6 +2776,161 @@ async function downloadAllPlaylistAudio() {
     if (ok && !fail) showToast(`Downloaded ${ok} audio file${ok === 1 ? '' : 's'}`, 'success');
     else if (ok && fail) showToast(`Downloaded ${ok}, ${fail} failed`, 'warning');
     else showToast('Could not download any audio files', 'error');
+}
+
+// ===================== Send Audio Files via Native Share =====================
+// Telegram and WhatsApp's *web* share endpoints (t.me/share/url, api.whatsapp.com/send)
+// only accept text + URL — they cannot attach files. The only browser-side way
+// to push the actual audio file into Telegram/WhatsApp is the Web Share API
+// Level 2 (`navigator.share({ files: [...] })`), which opens the OS share sheet
+// and lets the user pick Telegram, WhatsApp, Drive, etc. This works on:
+//   • Android Chrome (≥ 75) and most Android browsers
+//   • iOS Safari 16.4+
+// It is NOT supported on desktop browsers — there we tell the user to use
+// the Download buttons and attach manually.
+
+/**
+ * Fetch every (or every checked) audio file in the loaded playlist as a Blob,
+ * wrap them in File objects, then hand them to the OS share sheet via
+ * navigator.share({ files }). The user picks Telegram / WhatsApp / etc. and
+ * the chosen app receives the audio as native attachments.
+ */
+async function shareAudioFiles() {
+    const songs = (currentPlayer && Array.isArray(currentPlayer.songs))
+        ? currentPlayer.songs
+        : [];
+    if (!songs.length) {
+        showToast('No playlist loaded — open a playlist first', 'warning');
+        return;
+    }
+
+    // Capability check — Web Share API Level 2 (`canShare` with files).
+    const probeFile = new File([new Blob(['x'])], 'probe.mp3', { type: 'audio/mpeg' });
+    const canShareFiles = !!(
+        navigator.canShare &&
+        navigator.share &&
+        navigator.canShare({ files: [probeFile] })
+    );
+    if (!canShareFiles) {
+        showToast(
+            'Your browser can\'t attach files to Telegram/WhatsApp. ' +
+            'Please use Download and attach manually.',
+            'warning'
+        );
+        return;
+    }
+
+    // Honor the picker checkboxes if the picker is open.
+    const list = document.getElementById('audioDownloadList');
+    let indexes;
+    if (list && !list.classList.contains('d-none')) {
+        indexes = Array.from(list.querySelectorAll('.audio-dl-toggle:checked'))
+            .map(cb => Number(cb.dataset.index))
+            .filter(n => Number.isInteger(n));
+        if (!indexes.length) {
+            showToast('Pick at least one song to send', 'info');
+            return;
+        }
+    } else {
+        indexes = songs.map((_, i) => i);
+    }
+
+    const btn = document.getElementById('shareAudioFilesBtn');
+    const progress = document.getElementById('audioDownloadProgress');
+    const playlistName = sanitizeAudioFilename(getSharePlaylistName());
+
+    if (btn) {
+        btn.disabled = true;
+        btn.dataset.originalHtml = btn.innerHTML;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Preparing…';
+    }
+
+    const files = [];
+    let fetchFails = 0;
+    for (let i = 0; i < indexes.length; i++) {
+        const idx = indexes[i];
+        const song = songs[idx];
+        if (!song) { fetchFails++; continue; }
+        const audioUrl = song.audio_url || (song.id ? `/audio/${song.id}` : '');
+        if (!audioUrl) { fetchFails++; continue; }
+
+        if (progress) {
+            progress.textContent = `Preparing ${i + 1} of ${indexes.length}: ${song.title || 'song'}…`;
+        }
+
+        try {
+            const resp = await fetch(audioUrl, { credentials: 'same-origin' });
+            if (!resp.ok) { fetchFails++; continue; }
+            const ct = resp.headers.get('content-type') || '';
+            if (ct.includes('text/html')) { fetchFails++; continue; } // login page
+            const blob = await resp.blob();
+            const ext = audioExtensionFor(audioUrl, ct);
+            const trackNum = String(idx + 1).padStart(2, '0');
+            const title = sanitizeAudioFilename(song.title || `song-${idx + 1}`);
+            const filename = `${playlistName} - ${trackNum} - ${title}${ext}`;
+            const mime = blob.type || 'audio/mpeg';
+            files.push(new File([blob], filename, { type: mime }));
+        } catch (e) {
+            console.warn('Could not prepare audio for sharing:', audioUrl, e);
+            fetchFails++;
+        }
+    }
+
+    // Restore the button before opening the share sheet (otherwise it stays
+    // "Preparing…" while the OS sheet is up).
+    if (btn) {
+        btn.disabled = false;
+        if (btn.dataset.originalHtml) {
+            btn.innerHTML = btn.dataset.originalHtml;
+            delete btn.dataset.originalHtml;
+        }
+    }
+
+    if (!files.length) {
+        if (progress) progress.textContent = 'Could not prepare any audio files.';
+        showToast('Could not prepare audio files for sharing', 'error');
+        return;
+    }
+
+    // Some platforms cap the number/size of attachments per share. If we have
+    // more files than the OS will accept, we surface a clear message.
+    if (!navigator.canShare({ files })) {
+        if (progress) {
+            progress.textContent =
+                'Too many / too large for one share. Try fewer songs via "Pick songs".';
+        }
+        showToast('Too many or too large to share at once — pick fewer songs.', 'warning');
+        return;
+    }
+
+    const name = getSharePlaylistName();
+    const header = `🎶 ${name}`;
+    const lyricsBlock = buildShareLyricsBlock(2000); // soft cap for share text
+    const text = lyricsBlock ? `${header}\n\n${lyricsBlock}` : header;
+
+    try {
+        await navigator.share({
+            title: name,
+            text,
+            url: getShareUrl(),
+            files
+        });
+        if (progress) {
+            progress.textContent = fetchFails
+                ? `Shared ${files.length} file${files.length === 1 ? '' : 's'} (${fetchFails} skipped).`
+                : `Shared ${files.length} file${files.length === 1 ? '' : 's'}.`;
+        }
+        showToast(`Shared ${files.length} audio file${files.length === 1 ? '' : 's'}`, 'success');
+    } catch (e) {
+        // AbortError = user cancelled the share sheet — silent.
+        if (e && e.name === 'AbortError') {
+            if (progress) progress.textContent = '';
+            return;
+        }
+        console.warn('navigator.share failed:', e);
+        if (progress) progress.textContent = 'Share cancelled or failed.';
+        showToast('Could not open the share sheet', 'error');
+    }
 }
 
 // Native share sheet (mobile) — falls back gracefully if unsupported
@@ -3199,10 +3471,15 @@ function skipToNextSong() {
 function setupEventListeners() {
     // Filtering
     let filterTimeout;
-    document.getElementById('searchInput').addEventListener('input', () => {
-        clearTimeout(filterTimeout);
-        filterTimeout = setTimeout(filterMezmurs, 300);
-    });
+    // mezmur.js is shared by multiple templates; #searchInput only exists on the
+    // mezmur browse page, so guard against it being absent.
+    const searchInputEl = document.getElementById('searchInput');
+    if (searchInputEl) {
+        searchInputEl.addEventListener('input', () => {
+            clearTimeout(filterTimeout);
+            filterTimeout = setTimeout(filterMezmurs, 300);
+        });
+    }
 
     document.querySelectorAll('.tag-cloud input, input[name="operator"]').forEach(el => {
         el.addEventListener('change', () => {
@@ -3273,36 +3550,39 @@ function setupEventListeners() {
         });
     });
 
-    document.getElementById('playlistModal').addEventListener('hidden.bs.modal', () => {
-        if (currentPlayer.audioElement) {
-            currentPlayer.audioElement.pause();
-            currentPlayer.audioElement.remove();
-            currentPlayer.audioElement = null;
-        }
-        
-        // Clear all fallback messages
-        document.querySelectorAll('#playlistSongs .audio-fallback').forEach(fallback => {
-            fallback.remove();
-        });
-        
-        // Clear failed indices tracker
-        currentPlayer.failedIndices.clear();
-        
-        // Reset player state
-        currentPlayer.currentIndex = 0;
-        
-        // Safely hide lyrics controls if they exist
-        const lyricsControls = document.getElementById('lyricsControls');
-        if (lyricsControls) {
-            lyricsControls.classList.add('d-none');
-        }
-        
-        // Clear all console logs by accessing the console API
-        // Note: This doesn't clear browser console, but stops new logs
-        console.clear();
-    });
+    // #playlistModal only exists on pages that render the rich playlist player
+    // (mezmur browse page). On shared/discover/playlists list pages it is absent.
+    const playlistModalEvtEl = document.getElementById('playlistModal');
+    if (playlistModalEvtEl) {
+        playlistModalEvtEl.addEventListener('hidden.bs.modal', () => {
+            if (currentPlayer.audioElement) {
+                currentPlayer.audioElement.pause();
+                currentPlayer.audioElement.remove();
+                currentPlayer.audioElement = null;
+            }
 
-    document.getElementById
+            // Clear all fallback messages
+            document.querySelectorAll('#playlistSongs .audio-fallback').forEach(fallback => {
+                fallback.remove();
+            });
+
+            // Clear failed indices tracker
+            currentPlayer.failedIndices.clear();
+
+            // Reset player state
+            currentPlayer.currentIndex = 0;
+
+            // Safely hide lyrics controls if they exist
+            const lyricsControls = document.getElementById('lyricsControls');
+            if (lyricsControls) {
+                lyricsControls.classList.add('d-none');
+            }
+
+            // Clear all console logs by accessing the console API
+            // Note: This doesn't clear browser console, but stops new logs
+            console.clear();
+        });
+    }
 }
 
 // Initialization

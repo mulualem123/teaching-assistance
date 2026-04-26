@@ -38,7 +38,15 @@
                                 <button class="btn btn-primary" id="playAllBtn">
                                     <i class="bi bi-play-fill me-2"></i>Play All
                                 </button>
-                                <button class="btn btn-outline-secondary" id="sharePlaylistBtn">
+                                {# Opens the rich Share Playlist modal (link + lyrics + audio download).
+                                   The JS handler below sets modal.dataset.playlistId/Name then calls
+                                   .show(); the modal's `show.bs.modal` listener (mezmur.js) auto-fills
+                                   the share-link input. #}
+                                <button class="btn btn-outline-secondary"
+                                        id="sharePlaylistBtn"
+                                        type="button"
+                                        data-playlist-id="{{ playlist.id }}"
+                                        data-playlist-name="{{ playlist.name }}">
                                     <i class="bi bi-share me-2"></i>Share
                                 </button>
                                 {% if current_user.is_authenticated %}
@@ -183,6 +191,11 @@
     </div>
 </div>
 
+{# Rich Share Playlist modal (#sharePlaylistModal) — link + optional
+   lyrics + audio download + send to Telegram/WhatsApp. Triggered by
+   #sharePlaylistBtn via the click handler below. #}
+{% include '_share_playlist_modal.html' %}
+
 {% endblock %}
 
 {% block scripts %}
@@ -267,12 +280,43 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 
-    // Share playlist
+    // Share playlist — opens the rich Share Playlist modal
+    // (#sharePlaylistModal, defined in _share_playlist_modal.html). The
+    // modal's own `show.bs.modal` handler (mezmur.js) populates the
+    // share-link input, so we just need to set modal.dataset.playlistId
+    // / playlistName and pre-load window.currentPlayer.songs so the
+    // lyrics-preview and audio-download options have data to work with.
     document.getElementById('sharePlaylistBtn').addEventListener('click', function() {
-        const shareUrl = window.location.href;
-        navigator.clipboard.writeText(shareUrl).then(() => {
-            showToast('Playlist link copied to clipboard!', 'success');
-        });
+        const modalEl = document.getElementById('sharePlaylistModal');
+        if (!modalEl) {
+            // Defensive fallback — partial should be included on this page.
+            const shareUrl = window.location.href;
+            navigator.clipboard.writeText(shareUrl).then(() =>
+                showToast('Playlist link copied to clipboard!', 'success'));
+            return;
+        }
+
+        const playlistId = this.dataset.playlistId;
+        const playlistName = this.dataset.playlistName || 'Playlist';
+
+        // Stash id/name on the modal so getSharePlaylistId/Name (mezmur.js)
+        // pick them up — that drives the share link, lyrics fetch, etc.
+        modalEl.dataset.playlistId = playlistId;
+        modalEl.dataset.playlistName = playlistName;
+
+        // Re-use the songs we already have on this page so the modal's
+        // audio-download and lyrics-preview features work without a
+        // second network round-trip.
+        if (typeof window.currentPlayer === 'object') {
+            window.currentPlayer.playlistId = playlistId;
+            window.currentPlayer.songs = currentPlaylist.map(song => ({
+                id: song.id,
+                title: song.title,
+                audio_url: song.audioUrl || `/audio/${song.id}`
+            }));
+        }
+
+        bootstrap.Modal.getOrCreateInstance(modalEl).show();
     });
 
     // Functions

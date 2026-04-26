@@ -52,9 +52,15 @@
                                                data-no-intercept="true">
                                                 <i class="bi bi-play-fill me-1"></i>Play
                                             </a>
-                                            <button class="btn btn-outline-secondary btn-sm copy-link-btn" 
-                                                    data-playlist-id="{{ playlist.id }}" 
-                                                    title="Copy Share Link">
+                                            {# Opens the rich Share Playlist modal (#sharePlaylistModal —
+                                               link + lyrics preview + audio download + send to Telegram/WhatsApp).
+                                               Class kept as `copy-link-btn` for backwards compatibility with any
+                                               external code/styles that target it. #}
+                                            <button class="btn btn-outline-secondary btn-sm copy-link-btn open-share-modal-btn"
+                                                    type="button"
+                                                    data-playlist-id="{{ playlist.id }}"
+                                                    data-playlist-name="{{ playlist.name }}"
+                                                    title="Share this playlist">
                                                 <i class="bi bi-share"></i>
                                             </button>
                                             {% if current_user.is_authenticated %}
@@ -135,6 +141,11 @@
     </div>
 </div>
 {% endif %}
+
+{# Rich Share Playlist modal (link + optional lyrics + audio download +
+   send to Telegram/WhatsApp). Triggered by the share-icon button on each
+   playlist card via the click handler in the scripts block below. #}
+{% include '_share_playlist_modal.html' %}
 {% endblock %}
 
 {% block scripts %}
@@ -148,19 +159,63 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 
-    // Copy share link functionality
-    const copyLinkButtons = document.querySelectorAll('.copy-link-btn');
-    copyLinkButtons.forEach(button => {
+    /**
+     * Opens the rich Share Playlist modal (#sharePlaylistModal — defined in
+     * _share_playlist_modal.html, included at the bottom of this template).
+     *
+     * Pre-loads the playlist's songs into window.currentPlayer (defined in
+     * mezmur.js) so the modal's lyrics-preview and audio-download features
+     * have data to work with — no in-page player is open on this page.
+     */
+    async function openSharePlaylistModal(playlistId, playlistName) {
+        const modalEl = document.getElementById('sharePlaylistModal');
+        if (!modalEl) {
+            if (typeof showToast === 'function') {
+                showToast('Share dialog is unavailable on this page.', 'error');
+            }
+            return;
+        }
+
+        // Stash id/name on the modal so getSharePlaylistId() and
+        // getSharePlaylistName() in mezmur.js pick them up. The modal's
+        // own `show.bs.modal` listener reads these every time it opens.
+        modalEl.dataset.playlistId = playlistId;
+        modalEl.dataset.playlistName = playlistName || 'Playlist';
+
+        // Populate currentPlayer.songs so the lyrics-preview and
+        // audio-download options inside the modal can work.
+        try {
+            if (typeof window.currentPlayer === 'object' && typeof fetchPlaylistData === 'function') {
+                const data = await fetchPlaylistData(playlistId);
+                if (data && Array.isArray(data.songs)) {
+                    window.currentPlayer.playlistId = playlistId;
+                    window.currentPlayer.songs = data.songs.map(song => ({
+                        ...song,
+                        audio_url: song.audio_url || `/audio/${song.id}`
+                    }));
+                }
+            }
+        } catch (e) {
+            console.warn('Could not preload playlist data for share modal:', e);
+        }
+
+        bootstrap.Modal.getOrCreateInstance(modalEl).show();
+    }
+    // Expose globally so other scripts on the page (or future dynamically
+    // added buttons) can reuse this helper.
+    window.openSharePlaylistModal = openSharePlaylistModal;
+
+    // The share-icon button on each playlist card opens the rich modal
+    // instead of silently copying the URL — the modal itself offers a
+    // Copy Link action plus lyrics, audio download, and social share.
+    document.querySelectorAll('.copy-link-btn, .open-share-modal-btn').forEach(button => {
         button.addEventListener('click', function() {
             const playlistId = this.dataset.playlistId;
-            const shareUrl = `${window.location.origin}/playlist/shared/${playlistId}`;
-            
-            navigator.clipboard.writeText(shareUrl).then(() => {
-                showToast('Share link copied to clipboard!', 'success');
-            }).catch(err => {
-                console.error('Failed to copy link:', err);
-                showToast('Failed to copy link', 'error');
-            });
+            const playlistName =
+                this.dataset.playlistName ||
+                this.closest('.playlist-card')?.querySelector('.card-title a')?.textContent.trim() ||
+                'Playlist';
+            openSharePlaylistModal(playlistId, playlistName);
         });
     });
 

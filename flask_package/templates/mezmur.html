@@ -298,12 +298,13 @@
                                                                 <p class="small mb-1">{{ playlist.description }}</p>
                                                                 <span class="badge bg-secondary small">{{ playlist.songs.count() }} hymns</span>
                                                             </div>
-                                                            <a href="{{ url_for('view_shared_playlist', playlist_id=playlist.id) }}" 
-                                                               class="btn btn-sm btn-outline-primary ms-2 shared-playlist-link"
-                                                               data-no-intercept="true"
-                                                               data-playlist-type="shared">
+                                                            {# Open the in-page playlist modal/player instead of navigating away. #}
+                                                            <button type="button"
+                                                                    class="btn btn-sm btn-outline-primary ms-2"
+                                                                    onclick="event.stopPropagation(); loadPlaylist({{ playlist.id }});"
+                                                                    aria-label="Open '{{ playlist.name }}' in the player">
                                                                 <i class="bi bi-folder2-open"></i>
-                                                            </a>
+                                                            </button>
                                                         </div>
                                                     </div>
                                                 </div>
@@ -400,12 +401,13 @@
                                     <div class="mt-auto">
                                         <span class="badge bg-secondary mb-2">{{ playlist.songs.count() }} hymns</span>
                                         <div class="d-flex gap-2">
-                                            <a href="{{ url_for('view_shared_playlist', playlist_id=playlist.id) }}" 
-                                               class="btn btn-sm btn-primary w-100 shared-playlist-link"
-                                               data-no-intercept="true"
-                                               data-playlist-type="shared">
+                                            {# Open the in-page playlist modal/player instead of navigating to /playlist/shared/<id>. #}
+                                            <button type="button"
+                                                    class="btn btn-sm btn-primary w-100"
+                                                    onclick="event.stopPropagation(); loadPlaylist({{ playlist.id }});"
+                                                    aria-label="Open '{{ playlist.name }}' in the player">
                                                 <i class="bi bi-folder2-open"></i> Open
-                                            </a>
+                                            </button>
                                             {% set is_owner = current_user.is_authenticated and current_user.id == playlist.user_id %}
                                             {% set is_admin = current_user.is_authenticated and ('admin' in current_user.roles|map(attribute='name')) %}
                                             {% if is_owner or is_admin %}
@@ -832,102 +834,8 @@ English Translation:
         </div>
       </div>
     </div>
-    <!-- Share link copy model -->
-    <div class="modal fade" id="sharePlaylistModal" tabindex="-1" aria-labelledby="sharePlaylistModalLabel" aria-hidden="true">
-        <div class="modal-dialog">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="sharePlaylistModalLabel">
-                        <i class="bi bi-share-fill"></i> Share
-                        <span id="sharePlaylistTitle" class="fst-italic text-primary"></span>
-                    </h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body">
-                    <p class="text-muted small mb-2">
-                        Anyone with this link will land on the mezmur page filtered to the songs in this playlist.
-                    </p>
-                    <div class="mb-3">
-                        <label class="form-label">Share Link</label>
-                        <div class="input-group">
-                            <input type="text" class="form-control" id="shareLink" title="copy link" readonly>
-                            <button class="btn btn-outline-secondary" onclick="copyShareLink()" title="Copy link">
-                                <i class="bi bi-clipboard"></i>
-                            </button>
-                        </div>
-                    </div>
-
-                    <!-- Optional lyric content to embed in the shared message -->
-                    <div class="mb-3">
-                        <label class="form-label small fw-semibold mb-1">
-                            <i class="bi bi-card-text me-1"></i>Include lyrics in message
-                            <span class="text-muted fw-normal">(optional)</span>
-                        </label>
-                        <div class="d-flex flex-wrap gap-3">
-                            <div class="form-check">
-                                <input class="form-check-input share-content-toggle" type="checkbox"
-                                       id="shareIncludeAzmach" data-share-field="azmach">
-                                <label class="form-check-label small" for="shareIncludeAzmach">Azmach (ግዕዝ)</label>
-                            </div>
-                            <div class="form-check">
-                                <input class="form-check-input share-content-toggle" type="checkbox"
-                                       id="shareIncludePhonetic" data-share-field="azmachen">
-                                <label class="form-check-label small" for="shareIncludePhonetic">Phonetic</label>
-                            </div>
-                            <div class="form-check">
-                                <input class="form-check-input share-content-toggle" type="checkbox"
-                                       id="shareIncludeTranslation" data-share-field="engTrans">
-                                <label class="form-check-label small" for="shareIncludeTranslation">Translation</label>
-                            </div>
-                        </div>
-                        <div id="shareContentPreview"
-                             class="mt-2 small text-muted bg-light border rounded p-2 d-none"
-                             style="max-height: 160px; overflow: auto; white-space: pre-wrap;"></div>
-                    </div>
-
-                    <!-- Download audio for the playlist's songs -->
-                    <div class="mb-3">
-                        <label class="form-label small fw-semibold mb-1">
-                            <i class="bi bi-cloud-arrow-down me-1"></i>Download audio
-                            <span class="text-muted fw-normal">(optional)</span>
-                        </label>
-                        <div class="d-flex flex-wrap gap-2 mb-2">
-                            <button type="button" class="btn btn-sm btn-outline-primary"
-                                    id="downloadAllAudioBtn" onclick="downloadAllPlaylistAudio()">
-                                <i class="bi bi-download me-1"></i>Download all
-                            </button>
-                            <button type="button" class="btn btn-sm btn-outline-secondary"
-                                    onclick="toggleAudioDownloadList()" id="toggleAudioListBtn">
-                                <i class="bi bi-list-ul me-1"></i>Pick songs
-                            </button>
-                        </div>
-                        <div id="audioDownloadList"
-                             class="d-none border rounded small"
-                             style="max-height: 200px; overflow-y: auto;"></div>
-                        <div id="audioDownloadProgress" class="small text-muted mt-1"></div>
-                    </div>
-
-                    <div class="social-share-buttons d-flex flex-wrap gap-2">
-                        <button class="btn btn-facebook" onclick="shareOnFacebook()" title="Share on Facebook" aria-label="Share on Facebook">
-                            <i class="bi bi-facebook"></i> Facebook
-                        </button>
-                        <button class="btn btn-info text-white" onclick="shareOnTelegram()" title="Share on Telegram" aria-label="Share on Telegram">
-                            <i class="bi bi-telegram"></i> Telegram
-                        </button>
-                        <button class="btn btn-whatsapp" onclick="shareOnWhatsApp()" title="Share on WhatsApp" aria-label="Share on WhatsApp">
-                            <i class="bi bi-whatsapp"></i> WhatsApp
-                        </button>
-                        <button class="btn btn-twitter" onclick="shareOnTwitter()" title="Share on X / Twitter" aria-label="Share on X / Twitter">
-                            <i class="bi bi-twitter-x"></i> X
-                        </button>
-                        <button class="btn btn-outline-dark" onclick="shareNative()" title="More share options" aria-label="More share options">
-                            <i class="bi bi-three-dots"></i> More
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
+    <!-- Share link copy model (extracted into a reusable partial) -->
+    {% include '_share_playlist_modal.html' %}
 
 <!-- Add New Mezmur Modal -->
 <div class="modal fade" id="addMezmurModal" tabindex="-1" aria-labelledby="addMezmurModalLabel" aria-hidden="true">

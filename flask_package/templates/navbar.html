@@ -10,9 +10,6 @@
           <li class="nav-item">
             <a class="nav-link {% block activeMezmur %}{% endblock  %}" aria-current="page" href="{{url_for('mezmur')}}">Mezmur</a>
           </li>
-          <li class="nav-item">
-            <a class="nav-link {% block activeTranslate %}{% endblock  %}" href="{{url_for('translate')}}">Translate</a>
-          </li>
           {% if current_user.is_authenticated %}
           <li class="nav-item dropdown">
             <a class="nav-link dropdown-toggle {% block activePlaylist %}{% endblock  %}" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
@@ -33,6 +30,9 @@
           </li>
           {% endif %}
           {% if current_user.is_authenticated and 'admin' in current_user.roles %}
+          <li class="nav-item">
+            <a class="nav-link {% block activeTranslate %}{% endblock  %}" href="{{url_for('translate')}}">Translate</a>
+          </li>
           <li class="nav-item">
             <a class="nav-link {% block activeCalender %}{% endblock  %}" aria-current="page" href="{{url_for('calendar')}}">Calendar</a>
           </li>

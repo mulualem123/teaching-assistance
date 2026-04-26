@@ -8,6 +8,8 @@ import fitz as fz
 import sqlite3
 from flask import Flask, render_template,send_from_directory, send_file, request as rq, flash, redirect, url_for, abort, session
 from pptx import Presentation
+from pptx.util import Inches, Pt
+from io import BytesIO
 from flask_mail import Mail, Message
 from flask_sqlalchemy import SQLAlchemy #Account creation
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user #Account creation
@@ -530,6 +532,7 @@ def files():
         return render_template("files.html",files = os.listdir(pp_parent_folder), rows= db.get_data())
     
 @app.route("/translate")
+@roles_required('admin')
 def translate():
     #files = os.listdir(r'flask_package\pp')
     #return render_template("index.html", files=files, events=events)
@@ -2114,7 +2117,151 @@ def share_playlist(playlist_id):
         'message': f'Playlist is now {"public" if playlist.shared else "private"}.',
         'shared': playlist.shared
     })
-           
+
+
+# ----------------------------------------------------------------------- #
+# Generate a PowerPoint (.pptx) from a playlist                            #
+# ----------------------------------------------------------------------- #
+# Query params:
+#   fields = comma-separated list of lyric fields to include per song.
+#            Allowed values: azmach (Geez), azmachen (Phonetic), engTrans
+#            (English translation). Defaults to "azmach" if omitted.
+#   layout = "one"  -> one slide per song with all selected fields stacked
+#            "split" -> a separate slide per (song, field) pair (default)
+# Access rules mirror /api/playlists/<id>: owner, admin, or anyone if the
+# playlist is marked shared=True.
+@app.route('/api/playlists/<int:playlist_id>/pptx')
+def export_playlist_pptx(playlist_id):
+    try:
+        playlist = Playlist.query.get(playlist_id)
+        if not playlist:
+            return jsonify({'status': 'error', 'message': 'Playlist not found'}), 404
+
+        # Permission check: owner, admin, or shared.
+        is_owner = current_user.is_authenticated and playlist.user_id == current_user.id
+        is_admin = (current_user.is_authenticated
+                    and 'admin' in [r.name for r in current_user.roles])
+        if not (is_owner or is_admin or playlist.shared):
+            return jsonify({'status': 'error', 'message': 'Access denied'}), 403
+
+        FIELD_LABELS = {
+            'azmach':   ('Azmach (Ge\'ez)', 3),
+            'azmachen': ('Phonetic',        4),
+            'engTrans': ('Translation',     5),
+        }
+        requested = (rq.args.get('fields') or 'azmach').split(',')
+        fields = [f.strip() for f in requested if f.strip() in FIELD_LABELS]
+        if not fields:
+            fields = ['azmach']
+        layout_mode = (rq.args.get('layout') or 'split').strip().lower()
+        if layout_mode not in ('one', 'split'):
+            layout_mode = 'split'
+
+        # Build the deck.
+        prs = Presentation()
+        prs.slide_width = Inches(13.333)
+        prs.slide_height = Inches(7.5)
+        blank_layout = prs.slide_layouts[6]   # fully blank canvas
+        title_layout = prs.slide_layouts[0]   # title + subtitle
+
+        def _add_text_slide(title_text, body_text):
+            """Add a slide with a centered title and a large lyrics body."""
+            slide = prs.slides.add_slide(blank_layout)
+
+            # Title at the top
+            tbox = slide.shapes.add_textbox(
+                Inches(0.5), Inches(0.3),
+                prs.slide_width - Inches(1.0), Inches(0.9))
+            tf = tbox.text_frame
+            tf.word_wrap = True
+            p = tf.paragraphs[0]
+            run = p.add_run()
+            run.text = title_text or ''
+            run.font.size = Pt(28)
+            run.font.bold = True
+
+            # Lyrics body
+            bbox = slide.shapes.add_textbox(
+                Inches(0.5), Inches(1.3),
+                prs.slide_width - Inches(1.0),
+                prs.slide_height - Inches(1.6))
+            bf = bbox.text_frame
+            bf.word_wrap = True
+            for i, line in enumerate((body_text or '').splitlines() or ['']):
+                p = bf.paragraphs[0] if i == 0 else bf.add_paragraph()
+                run = p.add_run()
+                run.text = line
+                run.font.size = Pt(24)
+
+        # ---- Title slide ----
+        title_slide = prs.slides.add_slide(title_layout)
+        title_slide.shapes.title.text = playlist.name or 'Playlist'
+        try:
+            owner = playlist.user.username if playlist.user else ''
+        except Exception:
+            owner = ''
+        subtitle_lines = []
+        if playlist.description:
+            subtitle_lines.append(playlist.description)
+        if owner:
+            subtitle_lines.append(f'Compiled by {owner}')
+        subtitle_lines.append(datetime.now().strftime('%B %d, %Y'))
+        if len(title_slide.placeholders) > 1:
+            title_slide.placeholders[1].text = '\n'.join(subtitle_lines)
+
+        # ---- Song slides ----
+        song_relations = playlist.songs.all()
+        for rel in song_relations:
+            song_data = db.get_selected_data(rel.song_id)
+            if not song_data:
+                continue
+            song_title = song_data[1] if len(song_data) > 1 else f'Song {rel.song_id}'
+
+            if layout_mode == 'one':
+                # Stack every selected field on one slide.
+                blocks = []
+                for field in fields:
+                    label, idx = FIELD_LABELS[field]
+                    text = song_data[idx] if len(song_data) > idx else ''
+                    text = (text or '').strip()
+                    if text:
+                        blocks.append(f'— {label} —\n{text}')
+                if blocks:
+                    _add_text_slide(song_title, '\n\n'.join(blocks))
+            else:
+                # One slide per (song, field) — better for projection.
+                for field in fields:
+                    label, idx = FIELD_LABELS[field]
+                    text = song_data[idx] if len(song_data) > idx else ''
+                    text = (text or '').strip()
+                    if text:
+                        _add_text_slide(f'{song_title} — {label}', text)
+
+        # ---- Stream back ----
+        buf = BytesIO()
+        prs.save(buf)
+        buf.seek(0)
+
+        safe_name = re.sub(r'[^A-Za-z0-9._-]+', '_', (playlist.name or 'playlist')).strip('_')
+        if not safe_name:
+            safe_name = f'playlist_{playlist.id}'
+        filename = f'{safe_name}.pptx'
+
+        return send_file(
+            buf,
+            mimetype='application/vnd.openxmlformats-officedocument.presentationml.presentation',
+            as_attachment=True,
+            download_name=filename,
+        )
+    except Exception as e:
+        app.logger.error(f"Error exporting playlist {playlist_id} as pptx: {e}")
+        return jsonify({
+            'status': 'error',
+            'message': 'Failed to generate PowerPoint',
+            'details': str(e) if app.debug else 'Internal server error'
+        }), 500
+
+
 # Add a song to a playlist
 @app.route('/add_to_playlist', methods=['POST'])
 @login_required

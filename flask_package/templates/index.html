@@ -7,7 +7,9 @@
     <img src="{{ url_for('static', filename='logo.png') }}" alt="Logo" class="logo">
     <div class="btn-group">
         <a href="{{url_for('mezmur')}}" class="btn btn-primary">Mezmur</a>
+    {% if current_user.is_authenticated and ('admin' in current_user.roles) %}
         <a href="{{url_for('translate')}}" class="btn btn-secondary">Translate</a>
+    {% endif %}
     </div>
 </div>
 {% endblock %}

@@ -1,0 +1,148 @@
+{# ----------------------------------------------------------------------- #}
+{#  Reusable "Share Playlist" modal.                                         #}
+{#  All behavior is implemented in static/js/mezmur.js (which is loaded by   #}
+{#  base.html on every page). Pages that include this partial just need to   #}
+{#  set:                                                                     #}
+{#       modal.dataset.playlistId   = "<id>"                                  #}
+{#       modal.dataset.playlistName = "<name>"                                #}
+{#  before calling bootstrap.Modal(...).show(), or rely on currentPlayer if  #}
+{#  the playlist is already loaded into the in-page audio player.            #}
+{# ----------------------------------------------------------------------- #}
+<div class="modal fade" id="sharePlaylistModal" tabindex="-1" aria-labelledby="sharePlaylistModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="sharePlaylistModalLabel">
+                    <i class="bi bi-share-fill"></i> Share
+                    <span id="sharePlaylistTitle" class="fst-italic text-primary"></span>
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-muted small mb-2">
+                    Anyone with this link will land on the mezmur page filtered to the songs in this playlist.
+                </p>
+                <div class="mb-3">
+                    <label class="form-label">Share Link</label>
+                    <div class="input-group">
+                        <input type="text" class="form-control" id="shareLink" title="copy link" readonly>
+                        <button class="btn btn-outline-secondary" onclick="copyShareLink()" title="Copy link">
+                            <i class="bi bi-clipboard"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Optional lyric content to embed in the shared message -->
+                <div class="mb-3">
+                    <label class="form-label small fw-semibold mb-1">
+                        <i class="bi bi-card-text me-1"></i>Include lyrics in message
+                        <span class="text-muted fw-normal">(optional)</span>
+                    </label>
+                    <div class="d-flex flex-wrap gap-3">
+                        <div class="form-check">
+                            <input class="form-check-input share-content-toggle" type="checkbox"
+                                   id="shareIncludeAzmach" data-share-field="azmach">
+                            <label class="form-check-label small" for="shareIncludeAzmach">Azmach (ግዕዝ)</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input share-content-toggle" type="checkbox"
+                                   id="shareIncludePhonetic" data-share-field="azmachen">
+                            <label class="form-check-label small" for="shareIncludePhonetic">Phonetic</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input share-content-toggle" type="checkbox"
+                                   id="shareIncludeTranslation" data-share-field="engTrans">
+                            <label class="form-check-label small" for="shareIncludeTranslation">Translation</label>
+                        </div>
+                    </div>
+                    <div id="shareContentPreview"
+                         class="mt-2 small text-muted bg-light border rounded p-2 d-none"
+                         style="max-height: 160px; overflow: auto; white-space: pre-wrap;"></div>
+                </div>
+{% if current_user.is_authenticated and ('admin' in current_user.roles or 'mezmur_editor' in current_user.roles) %}
+                <!-- Generate a PowerPoint deck from the playlist -->
+                <div class="mb-3">
+                    <label class="form-label small fw-semibold mb-1">
+                        <i class="bi bi-file-earmark-slides me-1"></i>Generate PowerPoint
+                        <span class="text-muted fw-normal">(uses the lyric checkboxes above)</span>
+                    </label>
+                    <div class="d-flex flex-wrap gap-2 align-items-center">
+                        <div class="btn-group btn-group-sm" role="group" aria-label="Slide layout">
+                            <input type="radio" class="btn-check" name="pptxLayout"
+                                   id="pptxLayoutSplit" value="split" checked>
+                            <label class="btn btn-outline-secondary" for="pptxLayoutSplit"
+                                   title="One slide per lyric field — best for projection">
+                                Slide per field
+                            </label>
+                            <input type="radio" class="btn-check" name="pptxLayout"
+                                   id="pptxLayoutOne" value="one">
+                            <label class="btn btn-outline-secondary" for="pptxLayoutOne"
+                                   title="Stack every field on a single slide per song">
+                                One slide per song
+                            </label>
+                        </div>
+                        <button type="button" class="btn btn-sm btn-outline-primary"
+                                id="generatePptxBtn" onclick="generatePlaylistPptx()">
+                            <i class="bi bi-download me-1"></i>Download .pptx
+                        </button>
+                    </div>
+                    <div class="form-text small">
+                        <i class="bi bi-info-circle me-1"></i>
+                        If no lyric fields are checked above, the deck will use Azmach (Ge'ez).
+                    </div>
+                </div>
+
+                <!-- Download audio for the playlist's songs -->
+                <div class="mb-3">
+                    <label class="form-label small fw-semibold mb-1">
+                        <i class="bi bi-cloud-arrow-down me-1"></i>Download audio
+                        <span class="text-muted fw-normal">(optional)</span>
+                    </label>
+                    <div class="d-flex flex-wrap gap-2 mb-2">
+                        <button type="button" class="btn btn-sm btn-outline-primary"
+                                id="downloadAllAudioBtn" onclick="downloadAllPlaylistAudio()">
+                            <i class="bi bi-download me-1"></i>Download all
+                        </button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary"
+                                onclick="toggleAudioDownloadList()" id="toggleAudioListBtn">
+                            <i class="bi bi-list-ul me-1"></i>Pick songs
+                        </button>
+                        <button type="button" class="btn btn-sm btn-outline-success"
+                                id="shareAudioFilesBtn" onclick="shareAudioFiles()"
+                                title="Open the device share sheet so you can send the audio to Telegram, WhatsApp, etc.">
+                            <i class="bi bi-send me-1"></i>Send to Telegram / WhatsApp
+                        </button>
+                    </div>
+                    <div id="audioDownloadList"
+                         class="d-none border rounded small"
+                         style="max-height: 200px; overflow-y: auto;"></div>
+                    <div id="audioDownloadProgress" class="small text-muted mt-1"></div>
+                    <div class="form-text small">
+                        <i class="bi bi-info-circle me-1"></i>
+                        <strong>Send to Telegram / WhatsApp</strong> uses your phone's share sheet
+                        (works best on mobile). On desktop, please <em>Download</em> the audio
+                        and attach it manually.
+                    </div>
+                </div>
+{% endif %}
+                <div class="social-share-buttons d-flex flex-wrap gap-2">
+                    <button class="btn btn-facebook" onclick="shareOnFacebook()" title="Share on Facebook" aria-label="Share on Facebook">
+                        <i class="bi bi-facebook"></i> Facebook
+                    </button>
+                    <button class="btn btn-info text-white" onclick="shareOnTelegram()" title="Share on Telegram" aria-label="Share on Telegram">
+                        <i class="bi bi-telegram"></i> Telegram
+                    </button>
+                    <button class="btn btn-whatsapp" onclick="shareOnWhatsApp()" title="Share on WhatsApp" aria-label="Share on WhatsApp">
+                        <i class="bi bi-whatsapp"></i> WhatsApp
+                    </button>
+                    <button class="btn btn-twitter" onclick="shareOnTwitter()" title="Share on X / Twitter" aria-label="Share on X / Twitter">
+                        <i class="bi bi-twitter-x"></i> X
+                    </button>
+                    <button class="btn btn-outline-dark" onclick="shareNative()" title="More share options" aria-label="More share options">
+                        <i class="bi bi-three-dots"></i> More
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
