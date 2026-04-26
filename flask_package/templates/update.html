@@ -14,6 +14,8 @@
         crossorigin="anonymous">
   <!-- FullCalendar CSS -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/fullcalendar@5.5.0/main.min.css">
+  <!-- Bootstrap Icons -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
 
   <!-- Popper, Bootstrap, and FullCalendar Scripts -->
   <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.11.8/dist/umd/popper.min.js" 
@@ -92,10 +94,75 @@
             <label for="timed-english" class="form-label">Timed-English</label>
             <textarea id="timed-english" name="timed-english" class="form-control" rows="5">{{ mezmur[8] }}</textarea>
           </div>
-          <div class="mb-3">
-            <label for="file" class="form-label">Mezmur Audio</label>
-            <input type="file" name="file" class="form-control">
+          <!-- ============== Audio attachment block ============== -->
+          <div class="card mb-3">
+            <div class="card-header bg-light fw-semibold">
+              <i class="bi bi-music-note-beamed"></i> Mezmur Audio
+            </div>
+            <div class="card-body">
+              <!-- Currently attached audio (if any) -->
+              {% if current_audio_file %}
+                <div class="mb-3">
+                  <label class="form-label small text-muted mb-1">Currently attached</label>
+                  <div class="d-flex align-items-center flex-wrap gap-2">
+                    <span class="badge bg-success">{{ current_audio_file }}</span>
+                    <audio controls preload="none" style="max-width: 320px;">
+                      <source src="{{ url_for('static', filename='audio/' ~ current_audio_file) }}">
+                      Your browser does not support audio playback.
+                    </audio>
+                  </div>
+                  <div class="form-check mt-2">
+                    <input class="form-check-input" type="checkbox" name="remove_audio" value="1" id="removeAudioChk">
+                    <label class="form-check-label small text-danger" for="removeAudioChk">
+                      Remove the currently attached audio
+                    </label>
+                  </div>
+                </div>
+              {% else %}
+                <div class="mb-3">
+                  <span class="badge bg-secondary">No audio attached</span>
+                </div>
+              {% endif %}
+
+              <!-- Pick an existing audio file already on the server -->
+              <div class="mb-3">
+                <label for="existing_audio" class="form-label">
+                  Attach an existing audio file
+                  <span class="text-muted small">(already on the server)</span>
+                </label>
+                <div class="input-group">
+                  <select id="existing_audio" name="existing_audio" class="form-select">
+                    <option value="">-- choose a file --</option>
+                    {% for f in available_audio_files %}
+                      <option value="{{ f.name }}"
+                              data-url="{{ url_for('static', filename='audio/' ~ f.name) }}"
+                              {% if f.name == current_audio_file %} selected {% endif %}>
+                        {{ f.name }} ({{ (f.size / 1024) | round(1) }} KB)
+                      </option>
+                    {% endfor %}
+                  </select>
+                  <button type="button" class="btn btn-outline-secondary" id="previewExistingBtn">
+                    <i class="bi bi-play-circle"></i> Preview
+                  </button>
+                </div>
+                <audio id="existingAudioPreview" controls preload="none"
+                       class="mt-2 w-100" style="display:none;"></audio>
+                <div class="form-text">
+                  Pick a file from this list to attach it without re-uploading. Leave blank to keep the current audio.
+                </div>
+              </div>
+
+              <!-- Upload a brand new audio file (overrides the dropdown if both are set) -->
+              <div class="mb-1">
+                <label for="file" class="form-label">Or upload a new audio file</label>
+                <input type="file" name="file" id="file" class="form-control"
+                       accept=".mp3,.wav,.ogg,.webm,.m4a,audio/*">
+                <div class="form-text">Allowed: mp3, wav, ogg, webm, m4a</div>
+              </div>
+            </div>
           </div>
+          <!-- ============== /Audio attachment block ============== -->
+
           <div class="mb-3">
             <label class="form-label">Tags</label>
             {% for tag in tags %}
@@ -200,6 +267,66 @@
         stopAudioRecBtn.disabled = true;
       }
     });
+  </script>
+
+  <!-- Existing audio dropdown helpers -->
+  <script>
+    (function () {
+      const select  = document.getElementById('existing_audio');
+      const previewBtn = document.getElementById('previewExistingBtn');
+      const previewEl  = document.getElementById('existingAudioPreview');
+      const removeChk  = document.getElementById('removeAudioChk');
+      const fileInput  = document.getElementById('file');
+
+      if (!select || !previewBtn || !previewEl) return;
+
+      function loadSelectedIntoPreview() {
+        const opt = select.options[select.selectedIndex];
+        const url = opt ? opt.getAttribute('data-url') : null;
+        if (url) {
+          previewEl.src = url;
+          previewEl.style.display = 'block';
+        } else {
+          previewEl.removeAttribute('src');
+          previewEl.style.display = 'none';
+        }
+      }
+
+      previewBtn.addEventListener('click', () => {
+        loadSelectedIntoPreview();
+        if (previewEl.src) {
+          previewEl.play().catch(err => console.warn('Preview play blocked:', err));
+        }
+      });
+
+      // If user picks an existing file, clear the upload + remove flags so intent is unambiguous.
+      select.addEventListener('change', () => {
+        if (select.value) {
+          if (fileInput) fileInput.value = '';
+          if (removeChk) removeChk.checked = false;
+        }
+      });
+
+      // If user picks a new upload, clear the dropdown selection.
+      if (fileInput) {
+        fileInput.addEventListener('change', () => {
+          if (fileInput.files && fileInput.files.length) {
+            select.value = '';
+            if (removeChk) removeChk.checked = false;
+          }
+        });
+      }
+
+      // If user checks "remove", clear the dropdown + upload.
+      if (removeChk) {
+        removeChk.addEventListener('change', () => {
+          if (removeChk.checked) {
+            select.value = '';
+            if (fileInput) fileInput.value = '';
+          }
+        });
+      }
+    })();
   </script>
 </body>
 </html>

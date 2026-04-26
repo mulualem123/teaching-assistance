@@ -4,7 +4,11 @@ let currentPlayer = {
     playlistId: null,
     currentIndex: 0,
     audioElement: null,
-    songs: []
+    songs: [],
+    isLooping: false,  // Control whether to loop after reaching end
+    singleSongPlayMode: false, // True if a single song was selected, false for playlist playback
+    failedIndices: new Set(),  // Track indices that have failed to load
+    maxRetries: 1  // Max attempts per song before skipping
 };
 let masonry = null;
 
@@ -411,6 +415,21 @@ function readFiltersFromURL() {
     updateMobileTagsDisplay();
     // keep synced swipe controls in sync
     syncOthersToMobileSwipe();
+
+    // Handle ?playlist=<id> from a shared link — filter the mezmur grid down
+    // to the songs in that playlist. Done after a tick so other init code
+    // (like rendering the grid) has had a chance to run.
+    const playlistParam = params.get('playlist');
+    if (playlistParam && typeof filterMezmursBySharedPlaylist === 'function') {
+        // Use a small delay so cards exist in the DOM before we filter them
+        setTimeout(() => {
+            try {
+                filterMezmursBySharedPlaylist(playlistParam);
+            } catch (e) {
+                console.warn('Could not apply playlist filter from URL:', e);
+            }
+        }, 50);
+    }
 }
 
 // Persist filters in the URL (and push to history)
@@ -1296,28 +1315,36 @@ async function loadPlaylist(playlistId, forceReload = false) {
         
         const songsContainer = document.getElementById('playlistSongs');
         
-        // Update UI
+        // Update UI with card-based layout
         document.getElementById('playlistName').textContent = playlist.name;
-        songsContainer.innerHTML = playlist.songs.map(song => `
-            <div class="list-group-item d-flex justify-content-between align-items-center">
-                <div>${song.title}</div>
-                <button class="btn btn-sm btn-outline-danger" 
-                        data-remove-song data-playlist-id="${playlistId}" data-song-id="${song.id}">
-                    Remove
-                </button>
+        songsContainer.innerHTML = playlist.songs.map((song, index) => `
+            <div class="card mb-2 cursor-pointer playlist-song-card" data-song-index="${index}" onclick="playSongFromCard(${index})" style="cursor: pointer;">
+                <div class="card-body py-2">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div class="flex-grow-1">
+                            <h6 class="card-title mb-1">${song.title || 'Untitled'}</h6>
+                            <small class="text-muted">${song.titleen || ''}</small>
+                        </div>
+                        <button class="btn btn-sm btn-outline-danger ms-2" 
+                                onclick="event.stopPropagation(); removeFromPlaylist('${playlistId}', ${song.id})" 
+                                title="Remove from playlist">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </div>
+                </div>
             </div>
         `).join('');
 
-        // Initialize audio player state
-        currentPlayer = {
-            playlistId: playlistId,
-            currentIndex: 0,
-            audioElement: null,
-            songs: playlist.songs.map(song => ({
-                ...song,
-                audio_url: song.audio_url || `/audio/${song.id}`
-            }))
-        };
+        // Initialize audio player state (preserve loop and failed tracking)
+        currentPlayer.playlistId = playlistId;
+        currentPlayer.currentIndex = 0;
+        currentPlayer.audioElement = null;
+        currentPlayer.songs = playlist.songs.map(song => ({
+            ...song,
+            audio_url: song.audio_url || `/audio/${song.id}`
+        }));
+        currentPlayer.failedIndices.clear();
+        // Note: isLooping is preserved from previous state
         
         console.log('currentPlayer updated with', currentPlayer.songs.length, 'songs');
 
@@ -1341,9 +1368,7 @@ async function loadPlaylist(playlistId, forceReload = false) {
 }
 
 function showPlaylistErrorFallback(playlistId, errorMessage) {
-    const playlistModal = bootstrap.Modal.getInstance(document.getElementById('playlistModal')) || 
-                         new bootstrap.Modal(document.getElementById('playlistModal'));
-    
+    // Use the global playlistModal instance already initialized
     // Update modal content with Ethiopian Orthodox-inspired error UI
     document.getElementById('playlistName').innerHTML = `
         <i class="bi bi-exclamation-triangle-fill text-warning me-2"></i>
@@ -1405,8 +1430,7 @@ function showPlaylistErrorFallback(playlistId, errorMessage) {
 }
 
 function refreshPlaylistList() {
-    // Close the error modal
-    const playlistModal = bootstrap.Modal.getInstance(document.getElementById('playlistModal'));
+    // Close the error modal using global instance
     if (playlistModal) {
         playlistModal.hide();
     }
@@ -1531,8 +1555,7 @@ function buildFilterSummary(qobj) {
 }
 
 function showPopularTags() {
-    // Close the error modal
-    const playlistModal = bootstrap.Modal.getInstance(document.getElementById('playlistModal'));
+    // Close the error modal using global instance
     if (playlistModal) {
         playlistModal.hide();
     }
@@ -1786,12 +1809,24 @@ async function toggleSharePlaylist(playlistId, buttonElement) {
 
 async function loadInitialPlaylists() {
     try {
-        const response = await fetch('/api/playlists');
+        const response = await fetch('/api/playlists', {
+            headers: { 'Accept': 'application/json' },
+            credentials: 'same-origin'
+        });
+        // Anonymous users get redirected to the login page (HTML). Don't try
+        // to parse that as JSON — just skip refreshing the sidebar silently.
+        const ct = response.headers.get('content-type') || '';
+        if (!response.ok || !ct.includes('application/json')) {
+            // 401/403/redirect-to-login -> not signed in or no access; ignore.
+            return;
+        }
         const playlists = await response.json();
-        refreshPlaylistSidebar(playlists);
+        if (Array.isArray(playlists)) {
+            refreshPlaylistSidebar(playlists);
+        }
     } catch (error) {
-        console.error('Failed to load playlists:', error);
-        showToast('Failed to load playlists', 'error');
+        // Network error or non-JSON: log only, no toast (anonymous users don't need it)
+        console.warn('Could not load user playlists (likely not signed in):', error);
     }
 }
 // Function to refresh the sidebar
@@ -2080,43 +2115,570 @@ function playAll() {
 
     // Reset index and start playback from the beginning
     currentPlayer.currentIndex = -1; // Set to -1 so skipToNextSong starts correctly at 0
+    currentPlayer.singleSongPlayMode = false; // Playing the entire playlist
     skipToNextSong(); // Use skipToNextSong to initialize and play the first song
 }
 
 
+function playSongFromCard(index) {
+    if (index < 0 || index >= currentPlayer.songs.length) {
+        showToast('Invalid song selection', 'warning');
+        return;
+    }
+    
+    // Set current index and start playback
+    currentPlayer.currentIndex = index;
+    currentPlayer.singleSongPlayMode = true; // Playing a single song
+    playNextSong();
+}
+
+function toggleLoopMode() {
+    currentPlayer.isLooping = !currentPlayer.isLooping;
+    const loopBtn = document.getElementById('loopToggleBtn');
+    
+    if (currentPlayer.isLooping) {
+        loopBtn.classList.remove('btn-outline-secondary');
+        loopBtn.classList.add('btn-outline-success');
+        loopBtn.innerHTML = '<i class="bi bi-arrow-counterclockwise"></i> Loop: ON';
+        showToast('Loop mode enabled', 'success');
+    } else {
+        loopBtn.classList.remove('btn-outline-success');
+        loopBtn.classList.add('btn-outline-secondary');
+        loopBtn.innerHTML = '<i class="bi bi-arrow-counterclockwise"></i> Loop: OFF';
+        showToast('Loop mode disabled', 'info');
+    }
+}
+
+function stopPlaylist() {
+    if (currentPlayer.audioElement) {
+        currentPlayer.audioElement.pause();
+        currentPlayer.audioElement.currentTime = 0;
+    }
+    
+    // Reset player state
+    currentPlayer.currentIndex = 0;
+    currentPlayer.failedIndices.clear();
+    
+    // Hide lyrics controls
+    const lyricsControls = document.getElementById('lyricsControls');
+    if (lyricsControls) {
+        lyricsControls.classList.add('d-none');
+    }
+    
+    showToast('Playback stopped', 'info');
+}
+
+function toggleLiveSync() {
+    const liveBtn = document.getElementById('liveToggleBtn');
+    if (!liveBtn) return;
+
+    const turningOn = liveBtn.classList.contains('btn-outline-warning');
+
+    if (turningOn) {
+        // Enable live mode
+        liveBtn.classList.remove('btn-outline-warning');
+        liveBtn.classList.add('btn-warning');
+
+        // Collapse the other tabs and show only the active one
+        const c1 = document.getElementById('multiCollapseExample1');
+        const c2 = document.getElementById('multiCollapseExample2');
+        const c3 = document.getElementById('multiCollapseExample3');
+        if (c1) c1.classList.add('show');
+        if (c2) c2.classList.remove('show');
+        if (c3) c3.classList.remove('show');
+
+        showToast('Live Mode: Following timed lyrics', 'success');
+    } else {
+        // Disable live mode
+        liveBtn.classList.remove('btn-warning');
+        liveBtn.classList.add('btn-outline-warning');
+        showToast('Live Mode: Off — showing full lyrics', 'info');
+    }
+
+    // Re-render whichever song is currently loaded so the panels
+    // switch between timed and static views immediately.
+    const song = currentPlayer
+        && Array.isArray(currentPlayer.songs)
+        && currentPlayer.songs[currentPlayer.currentIndex];
+    if (song) {
+        renderLyricsForCurrentMode(song);
+    }
+}
+
 function highlightCurrentSong(index) {
-    document.querySelectorAll('#playlistSongs .list-group-item').forEach((item, i) => {
-        item.classList.toggle('active', i === index);
+    document.querySelectorAll('#playlistSongs .playlist-song-card').forEach((card, i) => {
+        card.classList.toggle('active', i === index);
     });
 }
 
-// Share Functionality
+// ===================== Playlist Share Functionality =====================
+// The share link points to the public mezmur page with a ?playlist=<id> query
+// param. When opened, the page filters the mezmur grid down to the songs in
+// that playlist (handled in readFiltersFromURL()).
 function generateShareLink(playlistId) {
-    return `${window.location.origin}/playlist/shared/${playlistId}`;
+    if (!playlistId) return window.location.origin + '/mezmur';
+    return `${window.location.origin}/mezmur?playlist=${encodeURIComponent(playlistId)}`;
 }
+
+// Resolve the playlist id from currentPlayer or, as a fallback, the modal's
+// data attribute (set when the share modal opens). Returns null if unknown.
+function getSharePlaylistId() {
+    if (currentPlayer && currentPlayer.playlistId) return currentPlayer.playlistId;
+    const modal = document.getElementById('sharePlaylistModal');
+    if (modal && modal.dataset.playlistId) return modal.dataset.playlistId;
+    return null;
+}
+
+function getSharePlaylistName() {
+    const nameEl = document.getElementById('playlistName');
+    if (nameEl && nameEl.textContent.trim()) return nameEl.textContent.trim();
+    const modal = document.getElementById('sharePlaylistModal');
+    if (modal && modal.dataset.playlistName) return modal.dataset.playlistName;
+    return 'Spiritual Playlist';
+}
+
+function getShareUrl() {
+    const input = document.getElementById('shareLink');
+    if (input && input.value) return input.value;
+    return generateShareLink(getSharePlaylistId());
+}
+
+function getShareMessage() {
+    const name = getSharePlaylistName();
+    const url = getShareUrl();
+    const lyricsBlock = buildShareLyricsBlock();
+    if (lyricsBlock) {
+        return `🎶 Check out this spiritual playlist: "${name}"\n${url}\n\n${lyricsBlock}`;
+    }
+    return `🎶 Check out this spiritual playlist: "${name}"\n${url}`;
+}
+
+/**
+ * Read the share-modal checkboxes and return which lyric fields the user
+ * wants embedded in the shared message. Returns an array like
+ *   [{ field: 'azmach',   label: 'Azmach (ግዕዝ)' }, ...]
+ */
+function getSelectedShareFields() {
+    const map = {
+        azmach:   'Azmach (ግዕዝ)',
+        azmachen: 'Phonetic',
+        engTrans: 'Translation'
+    };
+    const selected = [];
+    document.querySelectorAll('.share-content-toggle:checked').forEach(cb => {
+        const field = cb.dataset.shareField;
+        if (field && map[field]) selected.push({ field, label: map[field] });
+    });
+    return selected;
+}
+
+/**
+ * Build a plain-text block containing the requested lyric fields for every
+ * song in the currently loaded playlist. Returns '' if nothing selected or
+ * no playlist is loaded.
+ *
+ * @param {number} [maxChars] optional soft cap — truncates with an ellipsis
+ *   when the assembled block exceeds this many characters.
+ */
+function buildShareLyricsBlock(maxChars) {
+    const fields = getSelectedShareFields();
+    if (!fields.length) return '';
+
+    const songs = (currentPlayer && Array.isArray(currentPlayer.songs))
+        ? currentPlayer.songs
+        : [];
+    if (!songs.length) return '';
+
+    const parts = [];
+    songs.forEach((song, idx) => {
+        const songParts = [];
+        fields.forEach(({ field, label }) => {
+            const raw = song && song[field];
+            if (raw && String(raw).trim()) {
+                songParts.push(`— ${label} —\n${String(raw).trim()}`);
+            }
+        });
+        if (songParts.length) {
+            const title = (song && song.title) ? song.title : `Song ${idx + 1}`;
+            parts.push(`▶ ${title}\n${songParts.join('\n\n')}`);
+        }
+    });
+
+    if (!parts.length) return '';
+    let block = parts.join('\n\n──────────\n\n');
+
+    if (typeof maxChars === 'number' && maxChars > 0 && block.length > maxChars) {
+        block = block.slice(0, Math.max(0, maxChars - 1)).trimEnd() + '…';
+    }
+    return block;
+}
+
+/**
+ * Update the small preview shown under the checkboxes inside the share modal.
+ */
+function updateShareContentPreview() {
+    const preview = document.getElementById('shareContentPreview');
+    if (!preview) return;
+    const block = buildShareLyricsBlock();
+    if (!block) {
+        preview.classList.add('d-none');
+        preview.textContent = '';
+        return;
+    }
+    preview.classList.remove('d-none');
+    // Show first ~600 chars in the preview so the modal stays compact
+    preview.textContent = block.length > 600
+        ? block.slice(0, 599) + '…'
+        : block;
+}
+
+// Mark the playlist as publicly shared (so non-owners can view it). Best-effort:
+// if the user is the owner the backend sets shared=true; otherwise the call
+// is a no-op (403). Sends {shared: true} explicitly so the call is idempotent
+// and reopening the modal won't toggle the playlist back to private.
+async function ensurePlaylistShared(playlistId) {
+    if (!playlistId) return;
+    try {
+        await fetch(`/api/playlist/${playlistId}/share`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'same-origin',
+            body: JSON.stringify({ shared: true })
+        });
+    } catch (e) {
+        // Non-fatal: still allow sharing the link
+        console.warn('Could not auto-mark playlist as shared:', e);
+    }
+}
+
+// Populate the share modal whenever it opens
+document.addEventListener('DOMContentLoaded', () => {
+    const modal = document.getElementById('sharePlaylistModal');
+    if (!modal) return;
+    modal.addEventListener('show.bs.modal', () => {
+        const pid = getSharePlaylistId();
+        const name = getSharePlaylistName();
+        modal.dataset.playlistId = pid || '';
+        modal.dataset.playlistName = name;
+        const input = document.getElementById('shareLink');
+        if (input) input.value = generateShareLink(pid);
+        const titleHint = document.getElementById('sharePlaylistTitle');
+        if (titleHint) titleHint.textContent = name;
+        // Reset content checkboxes + preview each time the modal opens
+        document.querySelectorAll('.share-content-toggle').forEach(cb => { cb.checked = false; });
+        updateShareContentPreview();
+        // Reset audio-download UI each time the modal opens
+        const dlList = document.getElementById('audioDownloadList');
+        if (dlList) {
+            dlList.classList.add('d-none');
+            dlList.innerHTML = '';
+        }
+        const dlProgress = document.getElementById('audioDownloadProgress');
+        if (dlProgress) dlProgress.textContent = '';
+        const dlBtn = document.getElementById('downloadAllAudioBtn');
+        if (dlBtn && dlBtn.dataset.originalHtml) {
+            dlBtn.innerHTML = dlBtn.dataset.originalHtml;
+            delete dlBtn.dataset.originalHtml;
+            dlBtn.disabled = false;
+        }
+        // Best-effort: ensure the playlist is publicly viewable for recipients
+        ensurePlaylistShared(pid);
+    });
+
+    // Live-update the preview whenever any of the lyric checkboxes flip
+    modal.addEventListener('change', (e) => {
+        if (e.target && e.target.classList && e.target.classList.contains('share-content-toggle')) {
+            updateShareContentPreview();
+        }
+    });
+});
 
 function copyShareLink() {
     const shareInput = document.getElementById('shareLink');
-    shareInput.select();
-    document.execCommand('copy');
-    showToast('Link copied to clipboard', 'success');
+    if (!shareInput) return;
+    const value = shareInput.value || getShareUrl();
+    shareInput.value = value;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(value)
+            .then(() => showToast('Link copied to clipboard', 'success'))
+            .catch(() => {
+                shareInput.select();
+                document.execCommand('copy');
+                showToast('Link copied to clipboard', 'success');
+            });
+    } else {
+        shareInput.select();
+        document.execCommand('copy');
+        showToast('Link copied to clipboard', 'success');
+    }
 }
 
 function shareOnFacebook() {
-    const url = encodeURIComponent(generateShareLink(currentPlayer.playlistId));
-    window.open(`https://www.facebook.com/sharer/sharer.php?u=${url}`, '_blank');
+    // Facebook ignores `quote` for non-whitelisted apps and only uses the URL's
+    // OG meta — but we still pass `quote` for clients that honor it. The URL
+    // itself is what carries the playlist filter, so lyrics are best-effort.
+    const url = encodeURIComponent(getShareUrl());
+    const quote = encodeURIComponent(getShareMessage());
+    window.open(`https://www.facebook.com/sharer/sharer.php?u=${url}&quote=${quote}`, '_blank', 'noopener');
 }
 
 function shareOnTwitter() {
-    const url = encodeURIComponent(generateShareLink(currentPlayer.playlistId));
-    const text = encodeURIComponent(`Check out this spiritual playlist: ${document.getElementById('playlistName').textContent}`);
-    window.open(`https://twitter.com/intent/tweet?text=${text}&url=${url}`, '_blank');
+    // Twitter caps tweets around 280 chars; t.co shortens URLs to ~23 chars.
+    // Reserve room for header + url + spacing and truncate lyrics to fit.
+    const name = getSharePlaylistName();
+    const url = getShareUrl();
+    const header = `🎶 Check out this spiritual playlist: "${name}"`;
+    const URL_BUDGET = 23;          // t.co reserved length
+    const SAFETY = 10;              // newlines + ellipsis padding
+    const MAX_TWEET = 280;
+    const remaining = MAX_TWEET - header.length - URL_BUDGET - SAFETY;
+    const lyricsBlock = remaining > 30 ? buildShareLyricsBlock(remaining) : '';
+    const text = lyricsBlock
+        ? `${header}\n\n${lyricsBlock}`
+        : header;
+    const params = new URLSearchParams({ text, url });
+    window.open(`https://twitter.com/intent/tweet?${params.toString()}`, '_blank', 'noopener');
 }
 
 function shareOnWhatsApp() {
-    const url = encodeURIComponent(generateShareLink(currentPlayer.playlistId));
-    const text = encodeURIComponent(`Check out this spiritual playlist: ${document.getElementById('playlistName').textContent} - ${url}`);
-    window.open(`https://api.whatsapp.com/send?text=${text}`, '_blank');
+    // WhatsApp accepts very long messages, so embed the full lyrics block.
+    const text = encodeURIComponent(getShareMessage());
+    window.open(`https://api.whatsapp.com/send?text=${text}`, '_blank', 'noopener');
+}
+
+function shareOnTelegram() {
+    // Telegram's share URL has a generous limit (~4096 chars). Send the full
+    // header + url + lyrics block via the `text` param. The `url` param is
+    // also passed so Telegram still renders a link preview card.
+    const url = encodeURIComponent(getShareUrl());
+    const name = getSharePlaylistName();
+    const header = `🎶 Check out this spiritual playlist: "${name}"`;
+    const lyricsBlock = buildShareLyricsBlock(3500); // soft cap for safety
+    const text = encodeURIComponent(
+        lyricsBlock ? `${header}\n\n${lyricsBlock}` : header
+    );
+    window.open(`https://t.me/share/url?url=${url}&text=${text}`, '_blank', 'noopener');
+}
+
+// ===================== Audio Download =====================
+// Downloads the audio files of every (or selected) song in the loaded
+// playlist. Each file is fetched as a blob and saved with a friendly,
+// numbered filename so the listener gets them in playlist order.
+
+/**
+ * Build a safe filename fragment from an arbitrary song title.
+ * Strips characters that are illegal on Windows/macOS filesystems.
+ */
+function sanitizeAudioFilename(name) {
+    return String(name || 'song')
+        .replace(/[\\/:*?"<>|\r\n\t]/g, '')   // illegal FS chars
+        .replace(/\s+/g, ' ')
+        .trim()
+        .slice(0, 80) || 'song';
+}
+
+/**
+ * Detect a reasonable file extension from a Content-Type header
+ * or the URL itself. Defaults to .mp3 when uncertain.
+ */
+function audioExtensionFor(url, contentType) {
+    const ct = (contentType || '').toLowerCase();
+    if (ct.includes('mpeg') || ct.includes('mp3')) return '.mp3';
+    if (ct.includes('ogg')) return '.ogg';
+    if (ct.includes('wav')) return '.wav';
+    if (ct.includes('webm')) return '.webm';
+    if (ct.includes('mp4') || ct.includes('m4a')) return '.m4a';
+    const m = String(url || '').match(/\.([a-z0-9]{2,5})(?:\?|$)/i);
+    if (m) {
+        const ext = '.' + m[1].toLowerCase();
+        if (['.mp3', '.mpeg', '.ogg', '.wav', '.webm', '.m4a', '.mp4'].includes(ext)) {
+            return ext === '.mpeg' ? '.mp3' : ext;
+        }
+    }
+    return '.mp3';
+}
+
+/**
+ * Fetch a single audio URL and trigger a browser download with the
+ * given filename. Returns true on success, false on any failure.
+ */
+async function downloadOneAudio(audioUrl, filename) {
+    try {
+        const resp = await fetch(audioUrl, { credentials: 'same-origin' });
+        if (!resp.ok) return false;
+        const ct = resp.headers.get('content-type') || '';
+        if (ct.includes('text/html')) return false; // got the login page, not audio
+        const blob = await resp.blob();
+        const ext = audioExtensionFor(audioUrl, ct);
+        const finalName = filename.toLowerCase().endsWith(ext) ? filename : (filename + ext);
+        const objUrl = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = objUrl;
+        a.download = finalName;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        // Free the blob URL after the click has been processed
+        setTimeout(() => URL.revokeObjectURL(objUrl), 1000);
+        return true;
+    } catch (e) {
+        console.warn('Audio download failed for', audioUrl, e);
+        return false;
+    }
+}
+
+/**
+ * Render the per-song checkbox list inside the share modal so the user
+ * can pick which audio files to download.
+ */
+function renderAudioDownloadList() {
+    const list = document.getElementById('audioDownloadList');
+    if (!list) return;
+    const songs = (currentPlayer && Array.isArray(currentPlayer.songs))
+        ? currentPlayer.songs
+        : [];
+    if (!songs.length) {
+        list.innerHTML = '<div class="p-2 text-muted">No songs in this playlist.</div>';
+        return;
+    }
+    const rows = songs.map((song, idx) => {
+        const title = (song && song.title) ? song.title : `Song ${idx + 1}`;
+        const id = song && song.id;
+        const audioUrl = (song && song.audio_url) ? song.audio_url : (id ? `/audio/${id}` : '');
+        const safeTitle = title.replace(/"/g, '&quot;').replace(/</g, '&lt;');
+        return `
+            <div class="d-flex align-items-center gap-2 px-2 py-1 border-bottom audio-dl-row"
+                 data-audio-index="${idx}">
+                <div class="form-check m-0">
+                    <input class="form-check-input audio-dl-toggle" type="checkbox"
+                           id="audioDl_${idx}" checked data-index="${idx}">
+                </div>
+                <label for="audioDl_${idx}" class="flex-grow-1 small mb-0 text-truncate"
+                       title="${safeTitle}">${idx + 1}. ${safeTitle}</label>
+                <a class="btn btn-sm btn-link p-0" href="${audioUrl}" download
+                   title="Download just this song" aria-label="Download ${safeTitle}">
+                    <i class="bi bi-download"></i>
+                </a>
+            </div>
+        `;
+    }).join('');
+    list.innerHTML = rows;
+}
+
+/**
+ * Toggle visibility of the per-song download list.
+ */
+function toggleAudioDownloadList() {
+    const list = document.getElementById('audioDownloadList');
+    if (!list) return;
+    if (list.classList.contains('d-none')) {
+        renderAudioDownloadList();
+        list.classList.remove('d-none');
+    } else {
+        list.classList.add('d-none');
+    }
+}
+
+/**
+ * Download every (or every checked) audio file in the loaded playlist,
+ * one at a time with a short delay so the browser doesn't block the
+ * downloads or trigger the "site wants to download multiple files" prompt
+ * too aggressively.
+ */
+async function downloadAllPlaylistAudio() {
+    const songs = (currentPlayer && Array.isArray(currentPlayer.songs))
+        ? currentPlayer.songs
+        : [];
+    if (!songs.length) {
+        showToast('No playlist loaded — open a playlist first', 'warning');
+        return;
+    }
+
+    // If the picker list is open, honor the checkboxes; otherwise download all.
+    const list = document.getElementById('audioDownloadList');
+    let indexes;
+    if (list && !list.classList.contains('d-none')) {
+        indexes = Array.from(list.querySelectorAll('.audio-dl-toggle:checked'))
+            .map(cb => Number(cb.dataset.index))
+            .filter(n => Number.isInteger(n));
+        if (!indexes.length) {
+            showToast('Pick at least one song to download', 'info');
+            return;
+        }
+    } else {
+        indexes = songs.map((_, i) => i);
+    }
+
+    const btn = document.getElementById('downloadAllAudioBtn');
+    const progress = document.getElementById('audioDownloadProgress');
+    const playlistName = sanitizeAudioFilename(getSharePlaylistName());
+
+    if (btn) {
+        btn.disabled = true;
+        btn.dataset.originalHtml = btn.innerHTML;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Downloading…';
+    }
+
+    let ok = 0, fail = 0;
+    for (let i = 0; i < indexes.length; i++) {
+        const idx = indexes[i];
+        const song = songs[idx];
+        if (!song) { fail++; continue; }
+        const audioUrl = song.audio_url || (song.id ? `/audio/${song.id}` : '');
+        if (!audioUrl) { fail++; continue; }
+
+        const trackNum = String(idx + 1).padStart(2, '0');
+        const title = sanitizeAudioFilename(song.title || `song-${idx + 1}`);
+        const filename = `${playlistName} - ${trackNum} - ${title}`;
+
+        if (progress) {
+            progress.textContent = `Downloading ${i + 1} of ${indexes.length}: ${title}…`;
+        }
+
+        const success = await downloadOneAudio(audioUrl, filename);
+        if (success) ok++; else fail++;
+
+        // Small gap between downloads so the browser cooperates.
+        if (i < indexes.length - 1) {
+            await new Promise(r => setTimeout(r, 350));
+        }
+    }
+
+    if (btn) {
+        btn.disabled = false;
+        if (btn.dataset.originalHtml) {
+            btn.innerHTML = btn.dataset.originalHtml;
+            delete btn.dataset.originalHtml;
+        }
+    }
+    if (progress) {
+        progress.textContent = fail
+            ? `Done: ${ok} downloaded, ${fail} failed.`
+            : `Done: ${ok} file${ok === 1 ? '' : 's'} downloaded.`;
+    }
+    if (ok && !fail) showToast(`Downloaded ${ok} audio file${ok === 1 ? '' : 's'}`, 'success');
+    else if (ok && fail) showToast(`Downloaded ${ok}, ${fail} failed`, 'warning');
+    else showToast('Could not download any audio files', 'error');
+}
+
+// Native share sheet (mobile) — falls back gracefully if unsupported
+async function shareNative() {
+    if (!navigator.share) {
+        showToast('Native sharing not supported on this device', 'info');
+        return;
+    }
+    try {
+        const name = getSharePlaylistName();
+        const header = `🎶 Check out this spiritual playlist: "${name}"`;
+        const lyricsBlock = buildShareLyricsBlock();
+        await navigator.share({
+            title: name,
+            text: lyricsBlock ? `${header}\n\n${lyricsBlock}` : header,
+            url: getShareUrl()
+        });
+    } catch (e) {
+        // User cancelled — ignore
+    }
 }
 
 // Lyrics Highlighting System
@@ -2128,13 +2690,65 @@ let currentLyrics = {
 
 function parseTimedLyrics(lyrics) {
     if (!lyrics) return [];
-    return lyrics.split('\n').filter(line => line.trim()).map(line => {
-        const match = line.match(/^\[(\d+:\d+)\]\s*(.*)/);
-        return match ? {
-            time: convertToSeconds(match[1]),
-            text: match[2]
-        } : { time: 0, text: line };
+    const parsed = lyrics.split('\n').filter(line => line.trim()).map(line => {
+        // Match both formats: [MM:SS] and [HH:MM:SS.mmm] (with optional milliseconds)
+        const match = line.match(/^\[(\d+):(\d+)(?::(\d+))?(?:\.(\d+))?\]\s*(.*)/);
+        if (match) {
+            // match[1] = minutes/hours
+            // match[2] = seconds/minutes
+            // match[3] = seconds (if HH:MM:SS format)
+            // match[4] = milliseconds
+            // match[5] = text
+            
+            let hours = 0, minutes = 0, seconds = 0, milliseconds = 0;
+            
+            if (match[3] !== undefined) {
+                // HH:MM:SS.mmm format
+                hours = parseInt(match[1]);
+                minutes = parseInt(match[2]);
+                seconds = parseInt(match[3]);
+                milliseconds = match[4] ? parseInt(match[4]) : 0;
+            } else {
+                // MM:SS.mmm format
+                minutes = parseInt(match[1]);
+                seconds = parseInt(match[2]);
+                milliseconds = match[4] ? parseInt(match[4]) : 0;
+            }
+            
+            const totalSeconds = hours * 3600 + minutes * 60 + seconds + (milliseconds / 1000);
+            
+            return {
+                time: totalSeconds,
+                text: match[5].trim(),
+                hasTimestamp: true
+            };
+        } else {
+            // Line without timestamp - mark it for auto-timing
+            return { time: -1, text: line.trim(), hasTimestamp: false };
+        }
     });
+    
+    // Post-process: auto-generate timestamps for lines without them
+    let currentTime = 0.5;
+    for (let i = 0; i < parsed.length; i++) {
+        if (!parsed[i].hasTimestamp) {
+            // Assign auto-generated timestamp
+            parsed[i].time = currentTime;
+            currentTime += 3; // 3 seconds per line
+        } else {
+            // Use the existing timestamp and resume auto-timing from there
+            currentTime = parsed[i].time + 3;
+        }
+    }
+    
+    // Log for debugging
+    const manualLines = parsed.filter(p => p.hasTimestamp);
+    if (manualLines.length > 0 || parsed.length > 0) {
+        console.log(`Parsed ${manualLines.length} manual timestamps, auto-generated ${parsed.length - manualLines.length} lines (${parsed.length} total)`);
+    }
+    
+    // Remove the hasTimestamp property before returning
+    return parsed.map(p => ({ time: p.time, text: p.text }));
 }
 
 function convertToSeconds(timeString) {
@@ -2160,36 +2774,183 @@ function displayLyrics(lyrics, containerId) {
     }
 }
 
+/**
+ * Render plain (non-timed) lyrics into a panel. Used when Live Mode
+ * is OFF — we show the song's azmach / azmachen / engTrans text
+ * preserving line breaks, with no timing data attached so the
+ * highlight/scroll logic stays inert.
+ *
+ * @param {string} text - raw multi-line lyrics
+ * @param {string} containerId - DOM id of the target card-body
+ */
+function displayStaticLyrics(text, containerId) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+
+    const safe = (text == null) ? '' : String(text);
+    if (!safe.trim()) {
+        container.innerHTML = '<div class="text-muted small fst-italic">No lyrics available.</div>';
+        return;
+    }
+
+    // Split on newlines, render each as a non-timed lyric line so the
+    // styling matches but highlightLyrics() never marks one active.
+    const lines = safe.split(/\r?\n/);
+    container.innerHTML = lines
+        .map(line => `<div class="lyric-line static-lyric">${escapeHtml(line)}</div>`)
+        .join('');
+}
+
+/**
+ * Returns true when the Live Mode toggle button is in its "ON" state
+ * (filled `btn-warning`). When OFF the button has `btn-outline-warning`.
+ */
+function isLiveModeOn() {
+    const btn = document.getElementById('liveToggleBtn');
+    return !!(btn && btn.classList.contains('btn-warning'));
+}
+
+/**
+ * Paint the three lyric panels for the given song based on the
+ * current Live Mode state.
+ *   Live ON  → timed lyrics (currentLyrics.*) with highlight/scroll.
+ *   Live OFF → static azmach / azmachen / engTrans, no highlight.
+ *
+ * @param {Object} song - the song object from currentPlayer.songs
+ */
+function renderLyricsForCurrentMode(song) {
+    if (!song) return;
+    const live = isLiveModeOn();
+
+    // Mark the controls container so CSS can style static vs timed if desired.
+    const controls = document.getElementById('lyricsControls');
+    if (controls) controls.dataset.liveMode = live ? 'on' : 'off';
+
+    if (live) {
+        // Use the parsed timed lyrics so highlightLyrics() can sync.
+        displayLyrics(currentLyrics.geez,    'colapGeez');
+        displayLyrics(currentLyrics.latin,   'colapLatin');
+        displayLyrics(currentLyrics.english, 'colapEnglish');
+    } else {
+        // Show the plain stored lyrics — no time codes, no highlight.
+        displayStaticLyrics(song.azmach    || '', 'colapGeez');
+        displayStaticLyrics(song.azmachen  || '', 'colapLatin');
+        displayStaticLyrics(song.engTrans  || '', 'colapEnglish');
+    }
+}
+
 function highlightLyrics(currentTime) {
+    // When Live Mode is OFF the panels show plain azmach/azmachen/engTrans
+    // text with no timing data. Skip the entire highlight + auto-scroll
+    // pass so the static lyrics stay still and unstyled.
+    if (!isLiveModeOn()) return;
+
     ['geez', 'latin', 'english'].forEach(lang => {
         const container = document.getElementById(`colap${lang.charAt(0).toUpperCase() + lang.slice(1)}`);
         if (!container) return;
 
         const lines = container.querySelectorAll('.lyric-line');
         let activeLine = null;
+        let foundActive = false;
 
-        lines.forEach(line => {
+        lines.forEach((line, index) => {
             const lineTime = parseFloat(line.dataset.time) || 0;
-            const nextTime = line.nextElementSibling?.dataset.time || Infinity;
+            // Get the next line's time, or use a very large number if it's the last line
+            let nextTime = Infinity;
+            if (index < lines.length - 1) {
+                nextTime = parseFloat(lines[index + 1].dataset.time) || Infinity;
+            }
             
-            line.classList.toggle('active', 
-                currentTime >= lineTime && 
-                currentTime < nextTime
-            );
+            // A line is active if currentTime is within its time range [lineTime, nextTime)
+            const isActive = currentTime >= lineTime && currentTime < nextTime;
             
-            if (line.classList.contains('active')) {
+            if (isActive) {
+                line.classList.add('active');
                 activeLine = line;
+                foundActive = true;
+                // Debug: Log active line info
+                if (index === 0 || lang === 'geez') {
+                    console.log(`[${lang}] Active line ${index}: time=${lineTime}, nextTime=${nextTime}, currentTime=${currentTime.toFixed(2)}`);
+                }
+            } else {
+                line.classList.remove('active');
             }
         });
 
-        if (activeLine) {
-            activeLine.scrollIntoView({
-                behavior: 'smooth',
-                block: 'center',
-                inline: 'nearest'
-            });
+        if (activeLine && foundActive) {
+            // Scroll ONLY the lyrics panel itself, never the whole page.
+            // We walk up from the active line to find the nearest ancestor
+            // that is actually scrollable (overflow-y auto/scroll AND has
+            // overflow), then scroll that container so the active line is
+            // centered. Using scrollIntoView() here would also scroll the
+            // page/window, which is what we explicitly want to avoid.
+            scrollLyricLineIntoView(activeLine);
         }
     });
+}
+
+/**
+ * Scroll the active lyric line into the center of its nearest scrollable
+ * ancestor without affecting the page scroll position.
+ *
+ * @param {HTMLElement} line - the .lyric-line element to bring into view
+ */
+function scrollLyricLineIntoView(line) {
+    if (!line) return;
+
+    // Find the nearest scrollable ancestor (the lyric panel).
+    let scroller = line.parentElement;
+    while (scroller && scroller !== document.body) {
+        const style = window.getComputedStyle(scroller);
+        const overflowY = style.overflowY;
+        const canScroll = (overflowY === 'auto' || overflowY === 'scroll')
+            && scroller.scrollHeight > scroller.clientHeight;
+        if (canScroll) break;
+        scroller = scroller.parentElement;
+    }
+
+    // No scrollable ancestor → nothing to do (and crucially, do NOT
+    // fall back to scrollIntoView which would scroll the page).
+    if (!scroller || scroller === document.body) return;
+
+    // Short-mezmur guard: if all lyric lines for this language are
+    // already fully visible inside the scroller, don't scroll at all.
+    // Without this guard, large CSS bottom-padding on the scroll area
+    // (used to give long lyrics room to center the last line) would
+    // make scrollHeight > clientHeight even for tiny mezmurs, causing
+    // the panel to jitter up and down on every line change.
+    const card = line.closest('.card-body');
+    if (card) {
+        const lines = card.querySelectorAll('.lyric-line');
+        if (lines.length > 0) {
+            const firstRect = lines[0].getBoundingClientRect();
+            const lastRect  = lines[lines.length - 1].getBoundingClientRect();
+            const sRect     = scroller.getBoundingClientRect();
+            // Allow a 2px slack for sub-pixel rounding.
+            const allLinesFit = (firstRect.top    >= sRect.top - 2)
+                             && (lastRect.bottom <= sRect.bottom + 2);
+            if (allLinesFit) return;
+        }
+    }
+
+    const lineRect = line.getBoundingClientRect();
+    const scrollerRect = scroller.getBoundingClientRect();
+
+    // Distance of the line's center from the scroller's center, in px.
+    const lineCenter = lineRect.top + lineRect.height / 2;
+    const scrollerCenter = scrollerRect.top + scrollerRect.height / 2;
+    const delta = lineCenter - scrollerCenter;
+
+    // Only scroll if the line is meaningfully off-center to avoid jitter.
+    if (Math.abs(delta) < 4) return;
+
+    const target = scroller.scrollTop + delta;
+    try {
+        scroller.scrollTo({ top: target, behavior: 'smooth' });
+    } catch (_) {
+        // Fallback for older browsers
+        scroller.scrollTop = target;
+    }
 }
 
 // Replace the existing playNextSong function with this one
@@ -2229,23 +2990,31 @@ async function playNextSong() {
         }
  
         console.log(`Attempting to play song: ${song.title} at index ${currentPlayer.currentIndex}`);
+        
+        // --- Clear Previous Fallback Messages ---
+        document.querySelectorAll('#playlistSongs .audio-fallback').forEach(fallback => {
+            fallback.remove();
+        });
+        // --- End Clear Fallback ---
  
         // --- Update Lyrics Display ---
+        // Always parse timed lyrics so highlightLyrics() has data when
+        // the user is in Live Mode. The renderer below decides whether
+        // to actually paint the timed view (Live ON) or the static
+        // azmach / azmachen / engTrans view (Live OFF).
         currentLyrics = {
-            geez: parseTimedLyrics(song.timed_geez || song.lyrics || ''),
-            latin: parseTimedLyrics(song.timed_latin || ''),
+            geez:    parseTimedLyrics(song.timed_geez    || song.lyrics || ''),
+            latin:   parseTimedLyrics(song.timed_latin   || ''),
             english: parseTimedLyrics(song.timed_english || '')
         };
- 
+
         ['geez', 'latin', 'english'].forEach(lang => {
             const containerId = `colap${lang.charAt(0).toUpperCase() + lang.slice(1)}`;
             const container = document.getElementById(containerId);
             if (container) container.innerHTML = ''; // Clear first
         });
- 
-        displayLyrics(currentLyrics.geez, 'colapGeez');
-        displayLyrics(currentLyrics.latin, 'colapLatin');
-        displayLyrics(currentLyrics.english, 'colapEnglish');
+
+        renderLyricsForCurrentMode(song);
  
         highlightCurrentSong(currentPlayer.currentIndex);
         
@@ -2289,25 +3058,48 @@ async function playNextSong() {
                 highlightLyrics(currentPlayer.audioElement.currentTime);
             };
             currentPlayer.audioElement.onended = () => {
-                console.log(`Song ended: ${song.title}. Advancing.`);
-                skipToNextSong(); // Use skip function for consistent advancement
+                console.log(`Song ended: ${song.title}.`);
+                // Only advance if playing the full playlist, not a single song
+                if (!currentPlayer.singleSongPlayMode) {
+                    skipToNextSong(); // Use skip function for consistent advancement
+                } else {
+                    console.log('Single song mode: playback finished, not advancing');
+                }
             };
             currentPlayer.audioElement.onerror = (e) => {
-                const errorMsg = e.target.error ? `Error ${e.target.error.code}: ${e.target.error.message}` : 'Audio file not found or corrupted';
-                showToast(`Cannot play "${song.title}": ${errorMsg}`, 'error');
                 console.error('Audio Element Error:', e.target.error);
                 
                 // Hide the broken audio element
                 currentPlayer.audioElement.style.display = 'none';
                 
-                // Add fallback message
-                const fallbackMsg = document.createElement('div');
-                fallbackMsg.className = 'audio-fallback';
-                fallbackMsg.innerHTML = `<i class="bi bi-volume-x me-2"></i>Audio not available for "${song.title}"`;
-                currentPlayer.audioElement.parentNode.insertBefore(fallbackMsg, currentPlayer.audioElement.nextSibling);
+                // Only add one fallback message per error (check if one already exists immediately after audio element)
+                const playlistSongsContainer = document.getElementById('playlistSongs');
+                const audioElement = currentPlayer.audioElement;
+                let fallbackExists = false;
                 
-                // Optionally skip to next song after a delay
-                setTimeout(skipToNextSong, 2000);
+                // Check if there's already a fallback right after this audio element
+                let nextSibling = audioElement.nextElementSibling;
+                while (nextSibling && nextSibling.classList.contains('audio-fallback')) {
+                    fallbackExists = true;
+                    break;
+                }
+                
+                if (!fallbackExists) {
+                    const fallbackMsg = document.createElement('div');
+                    fallbackMsg.className = 'audio-fallback text-muted small';
+                    fallbackMsg.innerHTML = `<i class="bi bi-volume-x me-1"></i>Audio not available`;
+                    audioElement.parentNode.insertBefore(fallbackMsg, audioElement.nextSibling);
+                }
+                
+                // Track this failure
+                currentPlayer.failedIndices.add(currentPlayer.currentIndex);
+                
+                // Skip to next song only if playing full playlist, not single song
+                if (!currentPlayer.singleSongPlayMode) {
+                    setTimeout(skipToNextSong, 500);
+                } else {
+                    console.log('Single song mode: audio error, not auto-skipping');
+                }
             };            try {
                 console.log(`Playing audio: ${song.title}`);
                 await currentPlayer.audioElement.play();
@@ -2382,8 +3174,20 @@ function skipToNextSong() {
 
     // Handle playlist wrap-around
     if (currentPlayer.currentIndex >= currentPlayer.songs.length) {
-        currentPlayer.currentIndex = 0; // Loop back to the start
-        showToast('Reached end of playlist, starting over.', 'info');
+        if (currentPlayer.isLooping) {
+            currentPlayer.currentIndex = 0; // Loop back to the start
+            currentPlayer.failedIndices.clear(); // Reset retry tracking for new loop
+            showToast('Reached end of playlist, starting over.', 'info');
+        } else {
+            // Stop playback - reached end without looping
+            currentPlayer.currentIndex = currentPlayer.songs.length - 1;  // Stay at last song
+            if (currentPlayer.audioElement) {
+                currentPlayer.audioElement.pause();
+            }
+            showToast('Playlist finished.', 'success');
+            console.log('Playback stopped: reached end of playlist (loop disabled)');
+            return;
+        }
     }
     console.log(`Advanced to index: ${currentPlayer.currentIndex}`);
 
@@ -2473,13 +3277,29 @@ function setupEventListeners() {
         if (currentPlayer.audioElement) {
             currentPlayer.audioElement.pause();
             currentPlayer.audioElement.remove();
+            currentPlayer.audioElement = null;
         }
+        
+        // Clear all fallback messages
+        document.querySelectorAll('#playlistSongs .audio-fallback').forEach(fallback => {
+            fallback.remove();
+        });
+        
+        // Clear failed indices tracker
+        currentPlayer.failedIndices.clear();
+        
+        // Reset player state
+        currentPlayer.currentIndex = 0;
         
         // Safely hide lyrics controls if they exist
         const lyricsControls = document.getElementById('lyricsControls');
         if (lyricsControls) {
             lyricsControls.classList.add('d-none');
         }
+        
+        // Clear all console logs by accessing the console API
+        // Note: This doesn't clear browser console, but stops new logs
+        console.clear();
     });
 
     document.getElementById
@@ -2487,25 +3307,21 @@ function setupEventListeners() {
 
 // Initialization
 document.addEventListener('DOMContentLoaded', () => {
-    // Initialize components
-    playlistModal = new bootstrap.Modal(document.getElementById('playlistModal'));
-    setupEventListeners();
-    
-    // Setup event listeners
-    playlistModal._element.addEventListener('shown.bs.modal', () => {
-        // Now we're sure modal DOM elements exist
-        initMasonry();
-        // Don't call setupEventListeners again to avoid duplicate listeners
-    });
-
-    document.addEventListener('show.bs.modal', (event) => {
-        const openModals = document.querySelectorAll('.modal.show');
-        openModals.forEach(modal => {
-            if (modal !== event.target) {
-                bootstrap.Modal.getInstance(modal).hide();
-            }
+    // Initialize components only when their host elements exist on the current page.
+    // (mezmur.js is loaded on multiple pages; some don't have these modals.)
+    const playlistModalEl = document.getElementById('playlistModal');
+    if (playlistModalEl) {
+        playlistModal = new bootstrap.Modal(playlistModalEl);
+        playlistModalEl.addEventListener('shown.bs.modal', () => {
+            // Now we're sure modal DOM elements exist
+            initMasonry();
+            // Don't call setupEventListeners again to avoid duplicate listeners
         });
-    });
+    }
+    setupEventListeners();
+
+    // Removed problematic global modal auto-close listener that was preventing proper modal closure
+    // This listener was causing modals to interfere with each other when closing
 
     loadInitialPlaylists()
     // Initial setup
@@ -2522,13 +3338,17 @@ document.addEventListener('DOMContentLoaded', () => {
         var instance = new bootstrap.Dropdown(dropdown);
     });
 
-    // Handle modal transition
-    document.getElementById('createPlaylistModal').addEventListener('hidden.bs.modal', function() {
-        const collectionModals = document.querySelectorAll('.modal[id^="collectionsModal"]');
-        collectionModals.forEach(modal => {
-            bootstrap.Modal.getInstance(modal).show();
+    // Handle modal transition (only if createPlaylistModal exists on this page)
+    const createPlaylistModalEl = document.getElementById('createPlaylistModal');
+    if (createPlaylistModalEl) {
+        createPlaylistModalEl.addEventListener('hidden.bs.modal', function () {
+            const collectionModals = document.querySelectorAll('.modal[id^="collectionsModal"]');
+            collectionModals.forEach(modal => {
+                const inst = bootstrap.Modal.getInstance(modal);
+                if (inst) inst.show();
+            });
         });
-    });
+    }
 
     // Accessibility fix: Return focus to the body when any modal is closed.
     // This prevents the "aria-hidden" warning where focus gets trapped in a hidden modal.
@@ -2645,6 +3465,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // Add at the end of mezmur.js
 window.addEventListener('error', function(e) {
+    // Cross-origin scripts (CDN libs) are reported by browsers as opaque "Script error."
+    // with no filename / lineno. There is nothing we can do with these and surfacing
+    // them as toasts only confuses users, so swallow them silently.
+    const isOpaqueCrossOrigin =
+        (!e.filename && !e.lineno && !e.error) ||
+        (typeof e.message === 'string' && e.message.toLowerCase() === 'script error.');
+    if (isOpaqueCrossOrigin) {
+        return;
+    }
     showToast(`Unexpected error: ${e.message}`, 'error');
     console.error('Global Error:', e);
 });
@@ -2662,33 +3491,7 @@ function copyMezmurLyrics(mezmurId) {
     }
 }
 
-function shareOnWhatsApp(mezmurId) {
-    const textarea = document.getElementById(`lyrics-${mezmurId}`);
-    if (textarea) {
-        const text = encodeURIComponent(textarea.value);
-        const audioUrl = encodeURIComponent(`${window.location.origin}/audio/${mezmurId}`);
-        const shareText = `${text}\n\nListen to the audio: ${audioUrl}`;
-        
-        const whatsappUrl = `https://api.whatsapp.com/send?text=${shareText}`;
-        window.open(whatsappUrl, '_blank');
-    } else {
-        showToast('Could not find content to share.', 'error');
-    }
-}
-
-function shareOnTelegram(mezmurId) {
-    const textarea = document.getElementById(`lyrics-${mezmurId}`);
-    if (textarea) {
-        const text = textarea.value;
-        const audioUrl = `${window.location.origin}/audio/${mezmurId}`;
-        const shareText = `${text}\n\nListen to the audio: ${audioUrl}`;
-
-        const telegramUrl = `https://t.me/share/url?url=${encodeURIComponent(audioUrl)}&text=${encodeURIComponent(text)}`;
-        window.open(telegramUrl, '_blank');
-    } else {
-        showToast('Could not find content to share.', 'error');
-    }
-}
+// (shareOnTelegram is defined above next to the other playlist share helpers)
 
 // Show/hide Save + Share action buttons based on whether any filters are active
 function updateActionButtonsVisibility() {
@@ -2716,18 +3519,39 @@ function updateActionButtonsVisibility() {
 // Global state for current active playlist filter
 let currentPlaylistFilter = null;
 
+// Helper: fetch a playlist via the public endpoint first (works for anonymous
+// users when the playlist is marked shared), then fall back to the
+// authenticated endpoint. Returns parsed JSON or throws.
+async function fetchPlaylistData(playlistId) {
+    const tryEndpoint = async (url) => {
+        const r = await fetch(url, {
+            headers: { 'Accept': 'application/json' },
+            credentials: 'same-origin'
+        });
+        const ct = r.headers.get('content-type') || '';
+        if (!r.ok || !ct.includes('application/json')) {
+            return null; // signal: try next endpoint
+        }
+        return r.json();
+    };
+    // Public endpoint first — works for anonymous and authed users when shared
+    let data = await tryEndpoint(`/api/playlists/public/${playlistId}`);
+    if (data && !data.error && (data.songs || data.id)) return data;
+    // Fall back to authed endpoint (will only succeed for owners/admins or
+    // when the user is logged in and the playlist is shared)
+    data = await tryEndpoint(`/api/playlists/${playlistId}`);
+    return data;
+}
+
 // Filter mezmurs by shared playlist songs
 async function filterMezmursBySharedPlaylist(playlistId) {
     try {
-        // Fetch playlist details and songs
-        const response = await fetch(`/api/playlists/${playlistId}`);
-        if (!response.ok) {
-            showToast('Failed to load playlist', 'error');
+        const playlistData = await fetchPlaylistData(playlistId);
+        if (!playlistData) {
+            showToast('This playlist is private. Ask the owner to share it.', 'warning');
             return;
         }
-        
-        const playlistData = await response.json();
-        if (!playlistData || !playlistData.songs) {
+        if (!playlistData.songs) {
             showToast('Playlist is empty', 'warning');
             return;
         }

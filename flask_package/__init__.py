@@ -554,39 +554,69 @@ def translate():
 #Return Audio with better error handling
 @app.route("/audio/<id>")
 def audio(id):
+    """Serve the audio file associated with a mezmur id.
+
+    Robust against:
+      - missing / NA / null / whitespace-only audio_file values
+      - rows whose audio_file accidentally contains a path segment
+      - case differences in extensions
+    """
     try:
-        # Get the audio file from the database using the passed id
-        print("This is passed id from mezmur page: " + str(id))
+        print(f"[/audio/{id}] requested")
         audio_list = db.get_audio(id)
-        
-        if audio_list and audio_list[0] and audio_list[0] != "NA":
-            selected_audio = audio_list[0]
-            print("001 audio/Selected_audio_exist " + str(selected_audio))
-            
-            # Construct the absolute path to the audio directory
-            audio_dir = os.path.join(app.root_path, 'static', 'audio')
-            
-            # Check if file actually exists
-            audio_path = os.path.join(audio_dir, str(selected_audio))
-            if os.path.exists(audio_path):
-                return send_from_directory(audio_dir, str(selected_audio))
-            else:
-                print(f"Audio file not found at path: {audio_path}")
-                # Return a 404 error with proper JSON response
-                return jsonify({
-                    'error': 'Audio file not found',
-                    'message': f'Audio file for ID {id} does not exist on server'
-                }), 404
-        else:
-            print(f"002 No audio file found for ID: {id}")
-            # Return a 404 error for missing audio
+
+        # Normalise the DB value
+        raw = audio_list[0] if audio_list and audio_list[0] is not None else ""
+        selected_audio = str(raw).strip()
+        if (not selected_audio) or selected_audio.upper() == "NA":
+            print(f"[/audio/{id}] no audio attached in DB (value={raw!r})")
             return jsonify({
                 'error': 'No audio available',
-                    'message': f'No audio file associated with ID {id}' 
+                'message': f'No audio file associated with ID {id}'
             }), 404
-            
+
+        # Strip any accidental path components – we only ever store/serve a bare filename
+        safe_name = os.path.basename(selected_audio)
+        audio_dir = app.config.get('UPLOAD_FOLDER') or os.path.join(app.root_path, 'static', 'audio')
+        audio_path = os.path.join(audio_dir, safe_name)
+        print(f"[/audio/{id}] resolved -> {audio_path}")
+
+        if not os.path.isfile(audio_path):
+            # Try a case-insensitive lookup as a last resort (helps on case-sensitive FS)
+            try:
+                lower = safe_name.lower()
+                match = next((n for n in os.listdir(audio_dir) if n.lower() == lower), None)
+            except OSError:
+                match = None
+            if match:
+                print(f"[/audio/{id}] case-insensitive match: {match}")
+                safe_name = match
+            else:
+                print(f"[/audio/{id}] file not found on disk: {audio_path}")
+                return jsonify({
+                    'error': 'Audio file not found',
+                    'message': f'Audio file "{safe_name}" for ID {id} does not exist on server'
+                }), 404
+
+        # Pick a sensible MIME type from the extension
+        ext = os.path.splitext(safe_name)[1].lower()
+        mimetypes_map = {
+            '.mp3': 'audio/mpeg',
+            '.mpeg': 'audio/mpeg',
+            '.mpga': 'audio/mpeg',
+            '.wav': 'audio/wav',
+            '.ogg': 'audio/ogg',
+            '.webm': 'audio/webm',
+            '.m4a': 'audio/mp4',
+        }
+        mime = mimetypes_map.get(ext)
+        print(f"[/audio/{id}] serving {safe_name} as {mime or '(auto)'}")
+        return send_from_directory(audio_dir, safe_name, mimetype=mime, conditional=True)
+
     except Exception as e:
-        print(f"Error serving audio for ID {id}: {str(e)}")
+        import traceback as _tb
+        print(f"Error serving audio for ID {id}: {e}")
+        _tb.print_exc()
         return jsonify({
             'error': 'Server error',
             'message': 'Failed to retrieve audio file'
@@ -709,25 +739,35 @@ def uplaod_file():
             return redirect(url_for('files'))
     return redirect(url_for('files'))
 
-def upload (files):
-    #check if the post request has the file part
-    #if 'file' not in files:
-    #    print(str(files))
-    #    print("file is not in rq.files")
-    #    return "No File exist"
-    file = files['file']
-    print(file)
-    #Check if for empty file and has no name
-    if file.filename == '':
-        print(str(file.filename) + "the file has no name")
+def upload(files):
+    """Upload helper that returns the saved filename or a sentinel string.
+    Returns:
+        - filename (str) if upload successful
+        - "File has no name" if no file was uploaded or filename is empty
+        - "Invalid file type" if the file extension is not allowed
+    """
+    # Check if 'file' key exists in files
+    if 'file' not in files:
+        print("No 'file' key in request.files")
         return "File has no name"
+    
+    file = files['file']
+    print(f"Upload received: {file}")
+    
+    # Check if file has a name
+    if not file or file.filename == '':
+        print("The file has no name")
+        return "File has no name"
+    
+    # Check if file type is allowed
     if file and allowed_file(file.filename):
-        print("File does exit and is not null")
+        print("File exists and is valid")
         filename = secure_filename(file.filename)
-        file.save(os.path.join(app.config['UPLOAD_FOLDER'],filename))
+        file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
         return filename
     else:
-        return render_template("index.html",files = os.listdir(pp_parent_folder), rows= db.get_data())
+        print(f"Invalid file type: {file.filename}")
+        return "Invalid file type"
   
 @app.route('/delete/<id>')
 @login_required
@@ -749,10 +789,27 @@ def delete (id):
                            )
     
 def generate_timed_lyrics(lyrics_text):
+    """Generate timed lyrics with MM:SS.mmm format timestamps.
+    Each line gets a sequential timestamp with 3-second intervals.
+    """
     if not lyrics_text:
         return ""
     lines = lyrics_text.strip().split('\n')
-    timed_lines = [f"[00:00.000]{line.strip()}" for line in lines if line.strip()]
+    timed_lines = []
+    current_time = 0.5  # Start at 0.5 seconds to avoid overlap with audio start
+    
+    for line in lines:
+        line = line.strip()
+        if line:
+            # Format: [MM:SS.mmm]text
+            total_seconds = current_time
+            minutes = int(total_seconds // 60)
+            seconds = int(total_seconds % 60)
+            milliseconds = int((total_seconds % 1) * 1000)  # Get fractional part as milliseconds
+            timestamp = f"[{minutes:02d}:{seconds:02d}.{milliseconds:03d}]"
+            timed_lines.append(f"{timestamp}{line}")
+            current_time += 3  # Increment by 3 seconds for each line
+    
     return '\n'.join(timed_lines)
 
 
@@ -1016,6 +1073,41 @@ def _download_file_with_service_account(file_id, destination, sa_file=None):
     except HttpError as he:
         raise RuntimeError(f'Google Drive API error: {he}')
 
+def list_audio_files():
+    """Return a sorted list of audio files (with size) currently sitting in the upload folder.
+    Used by the update page to attach an existing audio file to a mezmur without re-uploading.
+    """
+    folder = app.config['UPLOAD_FOLDER']
+    audio_exts = {'.mp3', '.wav', '.ogg', '.webm', '.m4a', '.mpeg', '.mpga'}
+    files = []
+    try:
+        for name in os.listdir(folder):
+            full = os.path.join(folder, name)
+            if not os.path.isfile(full):
+                continue
+            ext = os.path.splitext(name)[1].lower()
+            if ext and ext not in audio_exts:
+                # Allow extension-less files too (e.g. the "m4a" file in the folder),
+                # but skip files with clearly non-audio extensions.
+                continue
+            try:
+                size = os.path.getsize(full)
+            except OSError:
+                size = 0
+            files.append({'name': name, 'size': size})
+    except FileNotFoundError:
+        return []
+    files.sort(key=lambda f: f['name'].lower())
+    return files
+
+
+@app.route('/api/audio_files', methods=['GET'])
+@login_required
+def api_audio_files():
+    """JSON list of audio files available on the server. Used by the update page."""
+    return jsonify({'success': True, 'files': list_audio_files()})
+
+
 @app.route('/update/<id>',  methods=['GET', 'POST'])
 @login_required
 def update (id):
@@ -1086,6 +1178,13 @@ def update (id):
     mezdata_list[7] = timed_latin
     mezdata_list[8] = timed_english
         
+    # Pull the current audio_file (column index 10) and the list of files available on disk
+    current_audio_file = mezdata[10] if len(mezdata) > 10 else None
+    if current_audio_file == "NA":
+        current_audio_file = ""
+
+    available_audio_files = list_audio_files()
+
     return render_template("update.html", 
                            mezmur=mezdata_list,
                            engTrat = googletransfun.check_language_type(mezdata[3]),
@@ -1093,7 +1192,9 @@ def update (id):
                            latin_text = latin_text,
                            engTrans = engTrans,
                            tags=db.get_taglist(),
-                           selected_mez_tags=selected_mez_tags)
+                           selected_mez_tags=selected_mez_tags,
+                           current_audio_file=current_audio_file,
+                           available_audio_files=available_audio_files)
 
 @app.route('/pushupdate', methods=['POST'])
 def pushupdate():
@@ -1122,12 +1223,34 @@ def pushupdate():
         db.set_timed_latin(timed_latin, mezmur_id)
         db.set_timed_english(timed_english, mezmur_id)
 
-        # First, attempt to get an uploaded audio file.
+        # Audio handling priority:
+        #   1. A new file uploaded via the file input -> save it
+        #   2. "Remove audio" checkbox -> clear (set to 'NA')
+        #   3. An existing audio file selected from the dropdown -> save that filename
+        #   4. Otherwise leave the current audio_file value alone
         uploaded_filename = upload(rq.files)
-        if "File has no name" not in uploaded_filename:
+        upload_failed_sentinels = ["File has no name", "Invalid file type"]
+        existing_audio_choice = (rq.form.get("existing_audio") or "").strip()
+        remove_audio_flag = rq.form.get("remove_audio") in ("1", "on", "true", "yes")
+
+        if uploaded_filename and uploaded_filename not in upload_failed_sentinels:
+            print(f"Saving uploaded audio file: {uploaded_filename}")
             db.set_audio_file(uploaded_filename, mezmur_id)
+        elif remove_audio_flag:
+            print(f"Removing audio for mezmur {mezmur_id}")
+            db.set_audio_file('NA', mezmur_id)
+        elif existing_audio_choice:
+            # Validate the chosen file actually exists in the upload folder before saving.
+            safe_name = os.path.basename(existing_audio_choice)  # strip any path components
+            chosen_path = os.path.join(app.config['UPLOAD_FOLDER'], safe_name)
+            if os.path.isfile(chosen_path):
+                print(f"Attaching existing audio file: {safe_name}")
+                db.set_audio_file(safe_name, mezmur_id)
+            else:
+                print(f"Selected existing audio not found on disk: {safe_name}")
+                flash(f'Selected audio file "{safe_name}" was not found on the server.')
         else:
-            # No file was uploaded. Check for recorded audio data.
+            # No new upload, no removal, no selection. Check for recorded audio data.
             recorded_audio_data = rq.form.get("recorded_audio", "")
             if recorded_audio_data and recorded_audio_data.startswith("data:"):
                 try:
@@ -1969,8 +2092,21 @@ def share_playlist(playlist_id):
     if playlist.user_id != current_user.id:
         return jsonify({'status': 'error', 'message': 'Permission denied'}), 403
 
-    # Toggle the shared status
-    playlist.shared = not playlist.shared
+    # Accept an explicit desired state via JSON body: {"shared": true|false}
+    # If omitted, fall back to the legacy toggle behaviour so existing UI keeps working.
+    desired = None
+    try:
+        body = rq.get_json(silent=True) or {}
+        if 'shared' in body:
+            desired = bool(body.get('shared'))
+    except Exception:
+        desired = None
+
+    if desired is None:
+        playlist.shared = not playlist.shared
+    else:
+        playlist.shared = desired
+
     account_db.session.commit()
 
     return jsonify({
@@ -2265,3 +2401,9 @@ def clone_playlist():
         account_db.session.rollback()
         app.logger.error(f"Error cloning playlist: {str(e)}")
         return jsonify({'status': 'error', 'message': str(e)}), 500
+
+# NOTE: A duplicate `/audio/<int:audio_id>` route used to live here that
+# served `static/audio/{id}.mp3`. It conflicted with the canonical
+# `/audio/<id>` route defined earlier (which looks up the real filename
+# from the DB) and caused 404s for any mezmur whose audio_file isn't
+# named "<id>.mp3". The duplicate has been removed intentionally.

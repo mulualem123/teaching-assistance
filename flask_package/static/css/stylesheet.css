@@ -504,6 +504,12 @@
     border-radius: 8px;
     padding: 15px;
     margin: 10px 0;
+    /* Prevent scroll chaining: when the user (or auto-scroll) reaches
+       the top/bottom of the lyrics panel, the page should NOT start
+       scrolling. This also prevents browser quirks where momentum
+       scroll bleeds into the document. */
+    overscroll-behavior: contain;
+    scroll-behavior: smooth;
 }
 
 /* Lyric Line Styles */
@@ -522,6 +528,18 @@
     opacity: 1;
     font-weight: 500;
     box-shadow: 0 2px 4px rgba(0,0,0,0.1); /* Subtle shadow */
+}
+
+/* Static (Live Mode OFF) lyric lines: full opacity, no timestamp prefix,
+   no fade — these are the plain azmach/azmachen/engTrans rendered as
+   ordinary lines so the song looks like a normal lyric sheet. */
+.lyric-line.static-lyric {
+    opacity: 1;
+    transform: none;
+    white-space: pre-wrap;
+}
+.lyric-line.static-lyric::before {
+    content: none;
 }
 
 /* Timestamp Styles */

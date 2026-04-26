@@ -672,9 +672,24 @@ English Translation:
                             <p class="preserve-line-breaks modal-lyrics-content">{{ row[5] }}</p>
                         </div>
                     </div>
-                    <audio controls class="audio-player mt-3">
-                        <source src="{{ url_for('audio', id=row[0]) }}" type="audio/mpeg">
-                    </audio>
+                    {% set _af = row[10] if row|length > 10 else '' %}
+                    {% if _af and _af|string|trim and _af|string|upper != 'NA' %}
+                      {% set _ext = _af.rsplit('.', 1)[1]|lower if '.' in _af else '' %}
+                      {% set _mime_map = {'mp3':'audio/mpeg','mpeg':'audio/mpeg','mpga':'audio/mpeg','wav':'audio/wav','ogg':'audio/ogg','webm':'audio/webm','m4a':'audio/mp4'} %}
+                      {% set _mime = _mime_map.get(_ext, '') %}
+                      <audio controls preload="metadata" class="audio-player mt-3 w-100">
+                        {% if _mime %}
+                          <source src="{{ url_for('audio', id=row[0]) }}" type="{{ _mime }}">
+                        {% else %}
+                          <source src="{{ url_for('audio', id=row[0]) }}">
+                        {% endif %}
+                        Your browser does not support audio playback.
+                      </audio>
+                    {% else %}
+                      <div class="audio-fallback text-muted small mt-3">
+                        <i class="bi bi-volume-mute me-1"></i>No audio attached for this mezmur.
+                      </div>
+                    {% endif %}
                 </div>
             </div>
         </div>
@@ -710,12 +725,11 @@ English Translation:
         </div>
     </div>
     <!-- Playlist Modal -->
-    <div class="modal fade" id="playlistModal" tabindex="-1" >
-    <!--<div class="modal fade" id="playlistModal" tabindex="-1" aria-hidden="true">-->
+    <div class="modal fade" id="playlistModal" tabindex="-1" aria-labelledby="playlistModalLabel" aria-hidden="true">
       <div class="modal-dialog modal-lg">
         <div class="modal-content">
           <div class="modal-header bg-light">
-            <h3 class="modal-title">🎵 <span id="playlistName">My Playlist</span></h3>
+            <h3 class="modal-title" id="playlistModalLabel">🎵 <span id="playlistName">My Playlist</span></h3>
             <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
           </div>
           <div class="modal-body">
@@ -723,6 +737,14 @@ English Translation:
               <div class="col-md-8">
                 <!-- Lyrics Controls: hidden by default with d-none -->
                 <div id="lyricsControls" class="d-none">
+                  <div class="mb-3 d-flex gap-2">
+                    <button class="btn btn-sm btn-outline-warning" id="liveToggleBtn" onclick="toggleLiveSync()">
+                      <i class="bi bi-clock"></i> Live Mode
+                    </button>
+                    <button class="btn btn-sm btn-outline-danger" onclick="stopPlaylist()">
+                      <i class="bi bi-stop-fill"></i> Stop Playback
+                    </button>
+                  </div>
                   <p>
                     <a class="btn btn-primary" 
                        data-bs-toggle="collapse" 
@@ -757,7 +779,10 @@ English Translation:
                       All
                     </button>
                   </p>
-                  <div class="col">
+                  <!-- Only this inner area scrolls during playback so the
+                       Live Mode / Stop / language toggle buttons above
+                       remain visible (pinned) at all times. -->
+                  <div class="col lyrics-scroll-area" id="lyricsScrollArea">
                     <!-- Updated HTML -->
                     <div class="row">
                         <div class="collapse multi-collapse show" id="multiCollapseExample1">
@@ -776,10 +801,6 @@ English Translation:
                     </div>
                   </div>
                 </div>
-                <!-- Playlist Songs Section -->
-                <div id="playlistSongs" class="list-group">
-                  <!-- Songs will be loaded here -->
-                </div>
               </div>
               <div class="col-md-4">
                 <div class="playlist-actions">
@@ -790,10 +811,20 @@ English Translation:
                   <button class="btn btn-outline-primary w-100 mb-2" onclick="skipToNextSong()">
                     <i class="bi bi-skip-forward-fill"></i> Play Next
                   </button>
+                  <button id="loopToggleBtn" class="btn btn-outline-secondary w-100 mb-2" onclick="toggleLoopMode()">
+                    <i class="bi bi-arrow-counterclockwise"></i> Loop: OFF
+                  </button>
                   <button class="btn btn-outline-success w-100 mb-2" data-bs-toggle="modal" data-bs-target="#sharePlaylistModal">
                     <i class="bi bi-share-fill"></i> Share
                   </button>
+                  <button class="btn btn-outline-danger w-100 mb-2" onclick="stopPlaylist()">
+                    <i class="bi bi-stop-fill"></i> Stop
+                  </button>
                   <textarea class="form-control mb-2" id="playlistDescription" placeholder="Add spiritual reflections..."></textarea>
+                </div>
+                                <!-- Playlist Songs Section -->
+                <div id="playlistSongs" class="list-group">
+                  <!-- Songs will be loaded here -->
                 </div>
               </div>
             </div>
@@ -802,32 +833,95 @@ English Translation:
       </div>
     </div>
     <!-- Share link copy model -->
-    <div class="modal fade" id="sharePlaylistModal">
+    <div class="modal fade" id="sharePlaylistModal" tabindex="-1" aria-labelledby="sharePlaylistModalLabel" aria-hidden="true">
         <div class="modal-dialog">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title"><i class="bi bi-share-fill"></i> Share Playlist</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    <h5 class="modal-title" id="sharePlaylistModalLabel">
+                        <i class="bi bi-share-fill"></i> Share
+                        <span id="sharePlaylistTitle" class="fst-italic text-primary"></span>
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
+                    <p class="text-muted small mb-2">
+                        Anyone with this link will land on the mezmur page filtered to the songs in this playlist.
+                    </p>
                     <div class="mb-3">
                         <label class="form-label">Share Link</label>
                         <div class="input-group">
                             <input type="text" class="form-control" id="shareLink" title="copy link" readonly>
-                            <button class="btn btn-outline-secondary" onclick="copyShareLink()">
+                            <button class="btn btn-outline-secondary" onclick="copyShareLink()" title="Copy link">
                                 <i class="bi bi-clipboard"></i>
                             </button>
                         </div>
                     </div>
-                    <div class="social-share-buttons d-flex gap-2">
-                        <button class="btn btn-facebook" onclick="shareOnFacebook()">
-                            <i class="bi bi-facebook"></i>
+
+                    <!-- Optional lyric content to embed in the shared message -->
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold mb-1">
+                            <i class="bi bi-card-text me-1"></i>Include lyrics in message
+                            <span class="text-muted fw-normal">(optional)</span>
+                        </label>
+                        <div class="d-flex flex-wrap gap-3">
+                            <div class="form-check">
+                                <input class="form-check-input share-content-toggle" type="checkbox"
+                                       id="shareIncludeAzmach" data-share-field="azmach">
+                                <label class="form-check-label small" for="shareIncludeAzmach">Azmach (ግዕዝ)</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input share-content-toggle" type="checkbox"
+                                       id="shareIncludePhonetic" data-share-field="azmachen">
+                                <label class="form-check-label small" for="shareIncludePhonetic">Phonetic</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input share-content-toggle" type="checkbox"
+                                       id="shareIncludeTranslation" data-share-field="engTrans">
+                                <label class="form-check-label small" for="shareIncludeTranslation">Translation</label>
+                            </div>
+                        </div>
+                        <div id="shareContentPreview"
+                             class="mt-2 small text-muted bg-light border rounded p-2 d-none"
+                             style="max-height: 160px; overflow: auto; white-space: pre-wrap;"></div>
+                    </div>
+
+                    <!-- Download audio for the playlist's songs -->
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold mb-1">
+                            <i class="bi bi-cloud-arrow-down me-1"></i>Download audio
+                            <span class="text-muted fw-normal">(optional)</span>
+                        </label>
+                        <div class="d-flex flex-wrap gap-2 mb-2">
+                            <button type="button" class="btn btn-sm btn-outline-primary"
+                                    id="downloadAllAudioBtn" onclick="downloadAllPlaylistAudio()">
+                                <i class="bi bi-download me-1"></i>Download all
+                            </button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary"
+                                    onclick="toggleAudioDownloadList()" id="toggleAudioListBtn">
+                                <i class="bi bi-list-ul me-1"></i>Pick songs
+                            </button>
+                        </div>
+                        <div id="audioDownloadList"
+                             class="d-none border rounded small"
+                             style="max-height: 200px; overflow-y: auto;"></div>
+                        <div id="audioDownloadProgress" class="small text-muted mt-1"></div>
+                    </div>
+
+                    <div class="social-share-buttons d-flex flex-wrap gap-2">
+                        <button class="btn btn-facebook" onclick="shareOnFacebook()" title="Share on Facebook" aria-label="Share on Facebook">
+                            <i class="bi bi-facebook"></i> Facebook
                         </button>
-                        <button class="btn btn-twitter" onclick="shareOnTwitter()">
-                            <i class="bi bi-twitter"></i>
+                        <button class="btn btn-info text-white" onclick="shareOnTelegram()" title="Share on Telegram" aria-label="Share on Telegram">
+                            <i class="bi bi-telegram"></i> Telegram
                         </button>
-                        <button class="btn btn-whatsapp" onclick="shareOnWhatsApp()">
-                            <i class="bi bi-whatsapp"></i>
+                        <button class="btn btn-whatsapp" onclick="shareOnWhatsApp()" title="Share on WhatsApp" aria-label="Share on WhatsApp">
+                            <i class="bi bi-whatsapp"></i> WhatsApp
+                        </button>
+                        <button class="btn btn-twitter" onclick="shareOnTwitter()" title="Share on X / Twitter" aria-label="Share on X / Twitter">
+                            <i class="bi bi-twitter-x"></i> X
+                        </button>
+                        <button class="btn btn-outline-dark" onclick="shareNative()" title="More share options" aria-label="More share options">
+                            <i class="bi bi-three-dots"></i> More
                         </button>
                     </div>
                 </div>
@@ -1072,6 +1166,141 @@ English Translation:
         {% endif %}
     });
     </script>
+
+<style>
+    .playlist-song-card {
+        transition: all 0.2s ease;
+        border: 1px solid #dee2e6;
+    }
+    
+    .playlist-song-card:hover {
+        background-color: #f8f9fa;
+        border-color: #0d6efd;
+        transform: translateX(2px);
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+    
+    .playlist-song-card.active {
+        border-left: 4px solid #0d6efd;
+        background-color: #e7f1ff;
+    }
+    
+    #playlistSongs {
+        max-height: 400px;
+        overflow-y: auto;
+    }
+
+    /* ----------------------------------------------------------------
+       Playlist Modal sizing
+       - The modal itself fills up to 100% of the viewport height.
+       - The modal-body becomes the scroll surface so the header stays
+         pinned and content doesn't push past the screen.
+       - #lyricsControls is capped at 80% of the modal-body so the
+         playlist song list and action buttons remain visible while
+         timed lyrics are playing.
+       ---------------------------------------------------------------- */
+    #playlistModal .modal-dialog {
+        max-height: 100vh;
+        height: 100%;
+        margin: 0 auto;
+        display: flex;
+        align-items: center;
+    }
+
+    #playlistModal .modal-content {
+        max-height: 100vh;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+    }
+
+    #playlistModal .modal-body {
+        flex: 1 1 auto;
+        overflow-y: auto;
+        max-height: 100%;
+    }
+
+    /* Cap the lyrics panel at 80% of the modal body's height so the
+       playlist songs and action column on the right stay reachable.
+       NOTE: #lyricsControls itself does NOT scroll. It's a flex column
+       where the two control bars (Live Mode/Stop and the language
+       toggle buttons) stay pinned and only `.lyrics-scroll-area`
+       scrolls underneath them. */
+    #playlistModal #lyricsControls {
+        max-height: 80%;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden; /* clip; the inner area provides the scrollbar */
+    }
+
+    /* The control bars must never shrink or scroll — keep them visible.
+       Also kept compact so they don't steal vertical space from the
+       lyric cards (otherwise the final lyric line can get clipped). */
+    #playlistModal #lyricsControls > .d-flex,
+    #playlistModal #lyricsControls > p {
+        flex: 0 0 auto;
+        position: sticky;
+        top: 0;
+        z-index: 2;
+        background: #fff; /* opaque so scrolling lyrics don't bleed through */
+        margin-bottom: .25rem;
+    }
+    /* The toggle paragraph uses a default <p> margin which adds extra
+       space below the second sticky bar — flatten it. */
+    #playlistModal #lyricsControls > p {
+        margin-top: 0;
+    }
+
+    /* Make the sticky control buttons smaller so the lyrics panel keeps
+       more usable height. The user explicitly OK'd downsizing them. */
+    #playlistModal #lyricsControls > p .btn,
+    #playlistModal #lyricsControls > .d-flex .btn {
+        padding: .15rem .5rem;
+        font-size: .8rem;
+        line-height: 1.2;
+    }
+    #playlistModal #lyricsControls > p {
+        display: flex;
+        flex-wrap: wrap;
+        gap: .25rem;
+    }
+
+    /* Only the lyric cards scroll. The bottom padding gives the final
+       lyric line room to be scrolled into the center of the visible
+       area — without it, the last line stays glued to the bottom edge
+       and can be clipped or sit under the next-line gap.            */
+    #playlistModal #lyricsControls .lyrics-scroll-area {
+        flex: 1 1 auto;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        min-height: 0; /* required for flex children to shrink properly */
+        /* Reserve enough room below the cards so the active-line
+           centering logic can scroll the last line up to the middle. */
+        padding-bottom: 50%;
+        scroll-padding-bottom: 50%;
+    }
+
+    /* Ensure the inner card-bodies don't clip their content. */
+    #playlistModal #lyricsControls .lyrics-scroll-area .card-body {
+        overflow: visible;
+    }
+
+    /* When the lyrics container is hidden via .d-none we don't want
+       its 80% height reservation to leak through. */
+    #playlistModal #lyricsControls.d-none {
+        max-height: 0;
+    }
+
+    .audio-fallback {
+        padding: 8px 12px;
+        background-color: #fff3cd;
+        border: 1px solid #ffc107;
+        border-radius: 4px;
+        color: #856404;
+        font-size: 0.875rem;
+        margin: 8px 0;
+    }
+</style>
 
 </body>
 </html>
